@@ -32,6 +32,6 @@ Window {
     DebugOverlay {
         anchors.left: parent.left
         anchors.top: parent.top
-        connected: uiBridge.isConnected()
+        connected: uiBridge.connected
     }
 }

@@ -4,8 +4,10 @@ Item {
     id: root
     property int sectorCount: 8
     property int selectedSector: -1
+    property int engineSelectedSector: -1
     property color baseColor: "#1e1f22"
     property color highlightColor: "#4aa3ff"
+    property int activeSector: (uiBridge.connected && engineSelectedSector >= 0) ? engineSelectedSector : selectedSector
 
     signal selectionChanged(int sector)
 
@@ -27,7 +29,7 @@ Item {
                 ctx.moveTo(centerX, centerY)
                 ctx.arc(centerX, centerY, radius, startAngle, endAngle)
                 ctx.closePath()
-                ctx.fillStyle = (i === root.selectedSector) ? root.highlightColor : root.baseColor
+                ctx.fillStyle = (i === root.activeSector) ? root.highlightColor : root.baseColor
                 ctx.fill()
                 ctx.strokeStyle = "#2a2c30"
                 ctx.lineWidth = 2
@@ -83,6 +85,19 @@ Item {
     }
 
     onSelectedSectorChanged: canvas.requestPaint()
+    onActiveSectorChanged: canvas.requestPaint()
     onWidthChanged: canvas.requestPaint()
     onHeightChanged: canvas.requestPaint()
+
+    Connections {
+        target: uiBridge
+        function onSelectionReceived(sector) {
+            root.engineSelectedSector = sector
+        }
+        function onConnectedChanged() {
+            if (!uiBridge.connected) {
+                root.engineSelectedSector = -1
+            }
+        }
+    }
 }

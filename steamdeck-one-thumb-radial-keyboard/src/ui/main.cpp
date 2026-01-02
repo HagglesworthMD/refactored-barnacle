@@ -7,11 +7,29 @@
 
 class UiBridge : public QObject {
     Q_OBJECT
+    Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
 public:
     explicit UiBridge(QObject *parent = nullptr)
         : QObject(parent) {
         connect(&m_socket, &QLocalSocket::connected, this, &UiBridge::connectedChanged);
         connect(&m_socket, &QLocalSocket::disconnected, this, &UiBridge::connectedChanged);
+        connect(&m_socket, &QLocalSocket::readyRead, this, [this]() {
+            while (m_socket.canReadLine()) {
+                const QByteArray line = m_socket.readLine().trimmed();
+                if (line.isEmpty()) {
+                    continue;
+                }
+                QJsonParseError error{};
+                const QJsonDocument doc = QJsonDocument::fromJson(line, &error);
+                if (error.error != QJsonParseError::NoError || !doc.isObject()) {
+                    continue;
+                }
+                const QJsonObject obj = doc.object();
+                if (obj.contains("sector")) {
+                    emit selectionReceived(obj.value("sector").toInt());
+                }
+            }
+        });
     }
 
     Q_INVOKABLE void connectEngine() {
@@ -35,8 +53,13 @@ public:
         return m_socket.state() == QLocalSocket::ConnectedState;
     }
 
+    bool connected() const {
+        return m_socket.state() == QLocalSocket::ConnectedState;
+    }
+
 signals:
     void connectedChanged();
+    void selectionReceived(int sector);
 
 private:
     void sendJson(const QString &type, double x, double y) {

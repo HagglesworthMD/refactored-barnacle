@@ -16,6 +16,13 @@ RadialLayout::RadialLayout(RadialLayoutConfig cfg)
         {"WBV", QChar('s')},
         {"KJX", QChar('r')}
     };
+    const int baseSize = m_sectors.size();
+    if (m_cfg.sectors > baseSize) {
+        for (int i = baseSize; i < m_cfg.sectors; ++i) {
+            const int source = i % baseSize;
+            m_sectors.push_back({QString("EXT%1").arg(i + 1), m_sectors.at(source).primaryChar});
+        }
+    }
     m_sectors.resize(m_cfg.sectors);
 }
 

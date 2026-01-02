@@ -13,6 +13,7 @@ private slots:
     void angleToSectorMaps();
     void swipeClassification();
     void stateTransitions();
+    void layoutExtendsToTwelve();
 };
 
 void EngineTests::angleToSectorMaps() {
@@ -37,6 +38,14 @@ void EngineTests::stateTransitions() {
     QCOMPARE(machine.state(), State::Touching);
     machine.transitionTo(State::Committing, "test_commit");
     QCOMPARE(machine.state(), State::Committing);
+}
+
+void EngineTests::layoutExtendsToTwelve() {
+    RadialLayout layout({12, 0.5, 0.5, 0.0});
+    QCOMPARE(layout.sectorList().size(), 12);
+    for (const auto &sector : layout.sectorList()) {
+        QVERIFY(!sector.primaryChar.isNull());
+    }
 }
 
 QTEST_MAIN(EngineTests)

@@ -36,7 +36,17 @@ QString InputRouter::handleMessage(const QString &line) {
         m_stateMachine.transitionTo(State::Hidden, "ui_hide");
     }
 
-    return "{\"ack\":true}";
+    QJsonObject reply;
+    reply.insert("ack", true);
+    if (m_pendingSelection >= 0) {
+        reply.insert("type", "selection");
+        reply.insert("sector", m_pendingSelection);
+        m_pendingSelection = -1;
+    } else {
+        reply.insert("type", "ack");
+    }
+
+    return QJsonDocument(reply).toJson(QJsonDocument::Compact);
 }
 
 void InputRouter::handleTouchDown(double xNorm, double yNorm) {
@@ -63,6 +73,7 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
         m_selectedSector = sector;
         m_haptics.onSelectionChange();
         emit selectionChanged(sector);
+        m_pendingSelection = sector;
         Logging::log(LogLevel::Info, "ENGINE", QString("selection sector %1").arg(sector));
     }
 }
@@ -82,7 +93,11 @@ void InputRouter::handleTouchUp(double xNorm, double yNorm) {
         if (m_selectedSector < 0) {
             m_selectedSector = 0;
         }
-        const QChar ch = m_layout.sectorList().at(m_selectedSector).primaryChar;
+        QChar ch = m_layout.sectorList().at(m_selectedSector).primaryChar;
+        if (ch.isNull()) {
+            Logging::log(LogLevel::Warn, "ENGINE", "null char in layout, committing '?'");
+            ch = QChar('?');
+        }
         m_commit.commitChar(ch);
         m_stateMachine.transitionTo(State::Committing, "touch_up_commit");
         m_haptics.onCommit();
