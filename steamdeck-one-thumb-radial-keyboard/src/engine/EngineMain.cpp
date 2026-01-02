@@ -1,22 +1,31 @@
 #include <QCoreApplication>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QStandardPaths>
+#include <unistd.h>
 #include "InputRouter.h"
 #include "Logging.h"
 
 using namespace radialkb;
 
 namespace {
-const char *kSocketName = "/tmp/radialkb.sock";
+QString socketPath() {
+    const QString runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+    if (!runtimeDir.isEmpty()) {
+        return runtimeDir + "/radialkb.sock";
+    }
+    return QString("/tmp/radialkb-%1.sock").arg(getuid());
+}
 }
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
     Logging::init("ENGINE");
 
-    QLocalServer::removeServer(kSocketName);
+    const QString path = socketPath();
+    QLocalServer::removeServer(path);
     QLocalServer server;
-    if (!server.listen(kSocketName)) {
+    if (!server.listen(path)) {
         Logging::log(LogLevel::Error, "ENGINE", QString("failed to listen: %1").arg(server.errorString()));
         return 1;
     }

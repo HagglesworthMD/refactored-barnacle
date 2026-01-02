@@ -5,13 +5,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Test Network)
 
 add_executable(radialkb-ui
     src/ui/main.cpp
 )
 
-target_link_libraries(radialkb-ui PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+target_link_libraries(radialkb-ui PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Network)
 
 target_compile_definitions(radialkb-ui PRIVATE RADIALKB_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src/ui/qml")
 
@@ -26,7 +26,7 @@ add_executable(radialkb-engine
     src/engine/Logging.cpp
 )
 
-target_link_libraries(radialkb-engine PRIVATE Qt6::Core)
+target_link_libraries(radialkb-engine PRIVATE Qt6::Core Qt6::Network)
 
 add_executable(engine_tests
     tests/engine_tests.cpp

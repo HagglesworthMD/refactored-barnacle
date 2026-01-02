@@ -3,13 +3,15 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QtMath>
 
 #include "Logging.h"
 
 namespace radialkb {
 
 InputRouter::InputRouter(QObject *parent)
-    : QObject(parent) {
+    : QObject(parent),
+      m_layout(RadialLayoutConfig{8, 0.5, 0.5, M_PI / 2.0}) {
 }
 
 QString InputRouter::handleMessage(const QString &line) {
@@ -93,9 +95,7 @@ void InputRouter::handleTouchUp(double xNorm, double yNorm) {
     } else if (swipe == SwipeDir::Down) {
         m_stateMachine.transitionTo(State::Cancelled, "swipe_down");
     } else {
-        if (m_selectedSector < 0) {
-            m_selectedSector = 0;
-        }
+        m_selectedSector = m_layout.angleToSector(xNorm, yNorm);
         QChar ch = m_layout.sectorList().at(m_selectedSector).primaryChar;
         if (ch.isNull()) {
             Logging::log(LogLevel::Warn, "ENGINE", "null char in layout, committing '?'");

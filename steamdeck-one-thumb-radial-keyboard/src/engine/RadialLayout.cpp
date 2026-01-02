@@ -8,13 +8,13 @@ RadialLayout::RadialLayout(RadialLayoutConfig cfg)
     : m_cfg(cfg) {
     m_sectors = {
         {"ETA", QChar('e')},
-        {"OIN", QChar('t')},
-        {"SHR", QChar('a')},
-        {"LUD", QChar('o')},
-        {"GCM", QChar('i')},
-        {"PFY", QChar('n')},
-        {"WBV", QChar('s')},
-        {"KJX", QChar('r')}
+        {"OIN", QChar('o')},
+        {"SHR", QChar('s')},
+        {"LUD", QChar('l')},
+        {"GCM", QChar('g')},
+        {"PFY", QChar('p')},
+        {"WBV", QChar('w')},
+        {"KJX", QChar('k')}
     };
     const int baseSize = m_sectors.size();
     if (m_cfg.sectors > baseSize) {

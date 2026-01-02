@@ -4,6 +4,8 @@
 #include <QLocalSocket>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
+#include <unistd.h>
 
 class UiBridge : public QObject {
     Q_OBJECT
@@ -36,7 +38,7 @@ public:
         if (m_socket.state() == QLocalSocket::ConnectedState) {
             return;
         }
-        m_socket.connectToServer("/tmp/radialkb.sock");
+        m_socket.connectToServer(socketPath());
     }
 
     Q_INVOKABLE void sendTouchDown(double x, double y) { sendJson("touch_down", x, y); }
@@ -77,6 +79,14 @@ private:
         const QJsonDocument doc(obj);
         m_socket.write(doc.toJson(QJsonDocument::Compact));
         m_socket.write("\n");
+    }
+
+    static QString socketPath() {
+        const QString runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
+        if (!runtimeDir.isEmpty()) {
+            return runtimeDir + "/radialkb.sock";
+        }
+        return QString("/tmp/radialkb-%1.sock").arg(getuid());
     }
 
     QLocalSocket m_socket;

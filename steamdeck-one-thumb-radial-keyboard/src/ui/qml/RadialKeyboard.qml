@@ -42,14 +42,23 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         onPressed: (mouse) => {
+            if (mouse.button !== Qt.LeftButton) {
+                return
+            }
             root.updateSelection(mouse.x, mouse.y)
             uiBridge.sendTouchDown(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
         onPositionChanged: (mouse) => {
+            if (!(mouse.buttons & Qt.LeftButton)) {
+                return
+            }
             root.updateSelection(mouse.x, mouse.y)
             uiBridge.sendTouchMove(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
         onReleased: (mouse) => {
+            if (mouse.button !== Qt.LeftButton) {
+                return
+            }
             uiBridge.sendTouchUp(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
         onClicked: (mouse) => {
@@ -78,6 +87,10 @@ Item {
         var angle = Math.atan2(dy, dx)
         if (angle < 0) {
             angle += 2 * Math.PI
+        }
+        angle += Math.PI / 2
+        if (angle >= 2 * Math.PI) {
+            angle -= 2 * Math.PI
         }
         var index = Math.floor(angle / (2 * Math.PI / root.sectorCount))
         if (index !== root.selectedSector) {
