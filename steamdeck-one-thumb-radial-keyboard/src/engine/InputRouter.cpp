@@ -25,12 +25,18 @@ QString InputRouter::handleMessage(const QString &line) {
 
     const QJsonObject obj = doc.object();
     const QString type = obj.value("type").toString();
-    if (type == "touch_down") {
-        handleTouchDown(obj.value("x").toDouble(), obj.value("y").toDouble());
-    } else if (type == "touch_move") {
-        handleTouchMove(obj.value("x").toDouble(), obj.value("y").toDouble());
-    } else if (type == "touch_up") {
-        handleTouchUp(obj.value("x").toDouble(), obj.value("y").toDouble());
+    if (type == "touch_down" || type == "touch_move" || type == "touch_up") {
+        const double x = obj.value("x").toDouble();
+        const double y = obj.value("y").toDouble();
+        Logging::log(LogLevel::Debug, "ENGINE",
+                     QString("input %1 x=%2 y=%3").arg(type).arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
+        if (type == "touch_down") {
+            handleTouchDown(x, y);
+        } else if (type == "touch_move") {
+            handleTouchMove(x, y);
+        } else {
+            handleTouchUp(x, y);
+        }
     } else if (type == "action") {
         handleAction(obj.value("action").toString());
     } else if (type == "ui_show") {
