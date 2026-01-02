@@ -22,6 +22,7 @@ add_executable(radialkb-engine
     src/engine/StateMachine.cpp
     src/engine/GestureRecognizer.cpp
     src/engine/CommitBridge.cpp
+    src/engine/UInputKeyboard.cpp
     src/engine/Haptics.cpp
     src/engine/Logging.cpp
 )
