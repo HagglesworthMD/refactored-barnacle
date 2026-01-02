@@ -81,9 +81,36 @@ Item {
         }
     }
 
+    MultiPointTouchArea {
+        anchors.fill: parent
+        minimumTouchPoints: 1
+        maximumTouchPoints: 1
+        touchPoints: [
+            TouchPoint { id: touch1 }
+        ]
+        onPressed: {
+            root.updateSelection(touch1.x, touch1.y)
+            uiBridge.sendTouchDown(root.normalizedX(touch1.x), root.normalizedY(touch1.y))
+        }
+        onUpdated: {
+            root.updateSelection(touch1.x, touch1.y)
+            uiBridge.sendTouchMove(root.normalizedX(touch1.x), root.normalizedY(touch1.y))
+        }
+        onReleased: {
+            uiBridge.sendTouchUp(root.normalizedX(touch1.x), root.normalizedY(touch1.y))
+        }
+    }
+
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
+        onExited: (mouse) => {
+            if (mouse.buttons & Qt.LeftButton) {
+                return
+            }
+            root.updateSelection(width / 2, height / 2)
+            uiBridge.sendTouchMove(0.5, 0.5)
+        }
         onPressed: (mouse) => {
             if (mouse.button !== Qt.LeftButton) {
                 return
@@ -92,9 +119,6 @@ Item {
             uiBridge.sendTouchDown(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
         onPositionChanged: (mouse) => {
-            if (!(mouse.buttons & Qt.LeftButton)) {
-                return
-            }
             root.updateSelection(mouse.x, mouse.y)
             uiBridge.sendTouchMove(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
@@ -188,7 +212,12 @@ Item {
 
     Connections {
         target: uiBridge
-        function onSelectionReceived(sector, letter, stage) {
+        function onSelectionReceived(sector, letter, stage, clearSelection) {
+            if (clearSelection || sector === -1) {
+                root.engineSelectedSector = -1
+                root.engineSelectedLetter = -1
+                return
+            }
             root.engineSelectedSector = sector
             root.engineSelectedLetter = letter
         }

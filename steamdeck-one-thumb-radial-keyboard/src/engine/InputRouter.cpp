@@ -41,11 +41,16 @@ QString InputRouter::handleMessage(const QString &line) {
 
     QJsonObject reply;
     reply.insert("ack", true);
-    if ((type == "touch_move" || type == "touch_down") && m_selectedSector >= 0) {
+    if (type == "touch_move" || type == "touch_down") {
+        const bool clearSelection = (m_selectedSector < 0);
         reply.insert("type", "selection");
         reply.insert("sector", m_selectedSector);
         reply.insert("letter", m_selectedKey);
         reply.insert("stage", m_trackingLetter ? "letter" : "group");
+        reply.insert("clearSelection", clearSelection);
+        if (clearSelection) {
+            Logging::log(LogLevel::Debug, "ENGINE", "selection cleared (reply)");
+        }
     } else {
         reply.insert("type", "ack");
     }

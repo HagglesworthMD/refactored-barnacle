@@ -27,11 +27,16 @@ public:
                     continue;
                 }
                 const QJsonObject obj = doc.object();
-                if (obj.contains("sector")) {
-                    const int sector = obj.value("sector").toInt();
-                    const int letter = obj.value("letter").toInt(-1);
+                const bool clearSelection = obj.value("clearSelection").toBool(false);
+                if (obj.contains("sector") || clearSelection) {
+                    int sector = obj.value("sector").toInt(-1);
+                    int letter = obj.value("letter").toInt(-1);
                     const QString stage = obj.value("stage").toString();
-                    emit selectionReceived(sector, letter, stage);
+                    if (clearSelection) {
+                        sector = -1;
+                        letter = -1;
+                    }
+                    emit selectionReceived(sector, letter, stage, clearSelection);
                 }
             }
         });
@@ -64,7 +69,7 @@ public:
 
 signals:
     void connectedChanged();
-    void selectionReceived(int sector, int letter, const QString &stage);
+    void selectionReceived(int sector, int letter, const QString &stage, bool clearSelection);
 
 private:
     void sendJson(const QString &type, double x, double y) {
