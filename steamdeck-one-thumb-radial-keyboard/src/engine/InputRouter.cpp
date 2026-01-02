@@ -38,7 +38,7 @@ QString InputRouter::handleMessage(const QString &line) {
 
     QJsonObject reply;
     reply.insert("ack", true);
-    if (type == "touch_move" && m_selectedSector >= 0) {
+    if ((type == "touch_move" || type == "touch_down") && m_selectedSector >= 0) {
         reply.insert("type", "selection");
         reply.insert("sector", m_selectedSector);
     } else {
@@ -53,6 +53,11 @@ void InputRouter::handleTouchDown(double xNorm, double yNorm) {
     m_lastY = yNorm;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     m_gestures.onTouchDown(sample);
+    const int sector = m_layout.angleToSector(xNorm, yNorm);
+    if (sector != m_selectedSector) {
+        m_selectedSector = sector;
+        Logging::log(LogLevel::Info, "ENGINE", QString("selection sector %1").arg(sector));
+    }
     m_stateMachine.transitionTo(State::Touching, "touch_down");
 }
 
