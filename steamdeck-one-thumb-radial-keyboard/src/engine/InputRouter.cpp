@@ -38,10 +38,9 @@ QString InputRouter::handleMessage(const QString &line) {
 
     QJsonObject reply;
     reply.insert("ack", true);
-    if (m_pendingSelection >= 0) {
+    if (type == "touch_move" && m_selectedSector >= 0) {
         reply.insert("type", "selection");
-        reply.insert("sector", m_pendingSelection);
-        m_pendingSelection = -1;
+        reply.insert("sector", m_selectedSector);
     } else {
         reply.insert("type", "ack");
     }
@@ -73,7 +72,6 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
         m_selectedSector = sector;
         m_haptics.onSelectionChange();
         emit selectionChanged(sector);
-        m_pendingSelection = sector;
         Logging::log(LogLevel::Info, "ENGINE", QString("selection sector %1").arg(sector));
     }
 }

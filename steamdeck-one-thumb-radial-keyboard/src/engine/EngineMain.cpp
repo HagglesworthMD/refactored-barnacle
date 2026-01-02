@@ -1,8 +1,6 @@
 #include <QCoreApplication>
 #include <QLocalServer>
 #include <QLocalSocket>
-#include <QTimer>
-
 #include "InputRouter.h"
 #include "Logging.h"
 

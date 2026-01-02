@@ -70,6 +70,9 @@ Item {
     }
 
     function updateSelection(x, y) {
+        if (uiBridge.connected) {
+            return
+        }
         var dx = x - width / 2
         var dy = y - height / 2
         var angle = Math.atan2(dy, dx)

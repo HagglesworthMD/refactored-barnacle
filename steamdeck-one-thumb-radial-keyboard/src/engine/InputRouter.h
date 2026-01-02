@@ -33,7 +33,6 @@ private:
     CommitBridge m_commit;
     Haptics m_haptics;
     int m_selectedSector{-1};
-    int m_pendingSelection{-1};
     double m_lastX{0.0};
     double m_lastY{0.0};
 };
