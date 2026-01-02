@@ -1,4 +1,5 @@
 #include <QtTest/QtTest>
+#include <QtMath>
 
 #include "../src/engine/RadialLayout.h"
 #include "../src/engine/GestureRecognizer.h"
