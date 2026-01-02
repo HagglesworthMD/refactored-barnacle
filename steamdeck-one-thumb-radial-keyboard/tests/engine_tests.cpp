@@ -16,17 +16,18 @@ private slots:
 };
 
 void EngineTests::angleToSectorMaps() {
-    RadialLayout layout(8);
-    QCOMPARE(layout.angleToSector(0.0), 0);
-    QCOMPARE(layout.angleToSector(3.0), 3);
-    QCOMPARE(layout.angleToSector(6.0), 7);
+    RadialLayout layout({8, 0.5, 0.5, 0.0});
+    QCOMPARE(layout.angleToSector(1.0, 0.5), 0);
+    QCOMPARE(layout.angleToSector(0.5, 0.0), 6);
+    QCOMPARE(layout.angleToSector(0.0, 0.5), 4);
 }
 
 void EngineTests::swipeClassification() {
     GestureRecognizer recognizer;
-    recognizer.onTouchDown(QPointF(0, 0));
-    QTest::qWait(50);
-    QCOMPARE(recognizer.onTouchUp(QPointF(100, 0)), SwipeDirection::Right);
+    TouchSample start{0.5, 0.5, 1000};
+    TouchSample end{0.8, 0.5, 1100};
+    recognizer.onTouchDown(start);
+    QCOMPARE(recognizer.onTouchUp(end), SwipeDir::Right);
 }
 
 void EngineTests::stateTransitions() {

@@ -4,6 +4,12 @@
 
 namespace radialkb {
 
-void logWithTag(const QString &tag, const QString &message);
+enum class LogLevel { Debug, Info, Warn, Error };
 
-}
+class Logging {
+public:
+    static void init(const QString &appTag);
+    static void log(LogLevel lvl, const QString &component, const QString &msg);
+};
+
+} // namespace radialkb

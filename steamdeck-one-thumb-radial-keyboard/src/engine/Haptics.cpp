@@ -5,11 +5,11 @@
 namespace radialkb {
 
 void Haptics::onSelectionChange() {
-    logWithTag("[ENGINE]", "haptics selection (stub)");
+    Logging::log(LogLevel::Debug, "ENGINE", "haptics selection (stub)");
 }
 
 void Haptics::onCommit() {
-    logWithTag("[ENGINE]", "haptics commit (stub)");
+    Logging::log(LogLevel::Debug, "ENGINE", "haptics commit (stub)");
 }
 
 }

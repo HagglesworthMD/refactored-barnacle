@@ -4,8 +4,8 @@
 
 namespace radialkb {
 
-RadialLayout::RadialLayout(int sectors)
-    : m_sectorCount(sectors) {
+RadialLayout::RadialLayout(RadialLayoutConfig cfg)
+    : m_cfg(cfg) {
     m_sectors = {
         {"ETA", QChar('e')},
         {"OIN", QChar('t')},
@@ -16,31 +16,32 @@ RadialLayout::RadialLayout(int sectors)
         {"WBV", QChar('s')},
         {"KJX", QChar('r')}
     };
-    m_sectors.resize(m_sectorCount);
+    m_sectors.resize(m_cfg.sectors);
 }
 
-int RadialLayout::sectorCount() const {
-    return m_sectorCount;
-}
+int RadialLayout::angleToSector(double xNorm, double yNorm) const {
+    const double dx = xNorm - m_cfg.centerX;
+    const double dy = yNorm - m_cfg.centerY;
 
-const QVector<Sector> &RadialLayout::sectors() const {
-    return m_sectors;
-}
+    double angle = std::atan2(dy, dx);
+    angle += m_cfg.angleOffsetRad;
 
-int RadialLayout::angleToSector(double angleRadians) const {
-    double angle = angleRadians;
-    if (angle < 0) {
-        angle += 2 * M_PI;
+    while (angle < 0) {
+        angle += 2.0 * M_PI;
     }
-    const double sectorSize = (2 * M_PI) / m_sectorCount;
-    int index = static_cast<int>(angle / sectorSize);
-    if (index < 0) {
-        index = 0;
+    while (angle >= 2.0 * M_PI) {
+        angle -= 2.0 * M_PI;
     }
-    if (index >= m_sectorCount) {
-        index = m_sectorCount - 1;
+
+    const double sectorAngle = (2.0 * M_PI) / static_cast<double>(m_cfg.sectors);
+    int sector = static_cast<int>(std::floor(angle / sectorAngle));
+    if (sector < 0) {
+        sector = 0;
     }
-    return index;
+    if (sector >= m_cfg.sectors) {
+        sector = m_cfg.sectors - 1;
+    }
+    return sector;
 }
 
-}
+} // namespace radialkb

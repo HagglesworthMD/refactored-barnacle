@@ -1,41 +1,41 @@
 #pragma once
 
-#include <QElapsedTimer>
-#include <QPointF>
-#include <QString>
+#include <cstdint>
 
 namespace radialkb {
 
-enum class SwipeDirection {
-    None,
-    Left,
-    Right,
-    Down
-};
+enum class SwipeDir { None, Left, Right, Down, Up };
 
 struct GestureThresholds {
-    double minDistancePx = 60.0;
-    double velocityPxPerMs = 0.6;
+    double minDistanceNorm = 0.12;
     int maxDurationMs = 220;
+    double minVelocityNormPerMs = 0.0009;
+};
+
+struct TouchSample {
+    double x = 0.0;
+    double y = 0.0;
+    std::int64_t timestampMs = 0;
 };
 
 class GestureRecognizer {
 public:
     explicit GestureRecognizer(GestureThresholds thresholds = {});
 
-    void onTouchDown(const QPointF &pos);
-    SwipeDirection onTouchUp(const QPointF &pos);
-    SwipeDirection onTouchMove(const QPointF &pos);
+    void onTouchDown(const TouchSample &sample);
+    SwipeDir onTouchMove(const TouchSample &sample);
+    SwipeDir onTouchUp(const TouchSample &sample);
 
     const GestureThresholds &thresholds() const;
 
 private:
+    SwipeDir classifySwipe(const TouchSample &sample, bool enforceDuration) const;
+
     GestureThresholds m_thresholds;
-    QElapsedTimer m_timer;
-    QPointF m_startPos;
+    TouchSample m_start;
     bool m_active{false};
 };
 
-QString swipeToString(SwipeDirection direction);
+const char *swipeToString(SwipeDir direction);
 
-}
+} // namespace radialkb

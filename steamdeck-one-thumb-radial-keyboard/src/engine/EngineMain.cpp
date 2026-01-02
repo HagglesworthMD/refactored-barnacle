@@ -14,11 +14,12 @@ const char *kSocketName = "/tmp/radialkb.sock";
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
+    Logging::init("ENGINE");
 
     QLocalServer::removeServer(kSocketName);
     QLocalServer server;
     if (!server.listen(kSocketName)) {
-        logWithTag("[ENGINE]", QString("failed to listen: %1").arg(server.errorString()));
+        Logging::log(LogLevel::Error, "ENGINE", QString("failed to listen: %1").arg(server.errorString()));
         return 1;
     }
 
@@ -26,7 +27,7 @@ int main(int argc, char *argv[]) {
 
     QObject::connect(&server, &QLocalServer::newConnection, [&]() {
         auto *socket = server.nextPendingConnection();
-        logWithTag("[ENGINE]", "ui connected");
+        Logging::log(LogLevel::Info, "ENGINE", "ui connected");
         QObject::connect(socket, &QLocalSocket::readyRead, [socket, &router]() {
             while (socket->canReadLine()) {
                 const QByteArray line = socket->readLine().trimmed();
@@ -43,6 +44,6 @@ int main(int argc, char *argv[]) {
         });
     });
 
-    logWithTag("[ENGINE]", "engine ready");
+    Logging::log(LogLevel::Info, "ENGINE", "engine ready");
     return app.exec();
 }

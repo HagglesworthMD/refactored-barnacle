@@ -2,8 +2,8 @@
 
 ## Gesture Thresholds (Engine)
 Defined in `src/engine/GestureRecognizer.h`:
-- `minDistancePx`: 60px
-- `velocityPxPerMs`: 0.6
+- `minDistanceNorm`: 0.12 (normalized [0..1])
+- `minVelocityNormPerMs`: 0.0009
 - `maxDurationMs`: 220ms
 
 ## Rationale

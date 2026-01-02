@@ -1,9 +1,17 @@
 #pragma once
 
+#include <QChar>
 #include <QString>
 #include <QVector>
 
 namespace radialkb {
+
+struct RadialLayoutConfig {
+    int sectors = 8;
+    double centerX = 0.5;
+    double centerY = 0.5;
+    double angleOffsetRad = 0.0;
+};
 
 struct Sector {
     QString label;
@@ -12,16 +20,16 @@ struct Sector {
 
 class RadialLayout {
 public:
-    explicit RadialLayout(int sectors = 8);
+    explicit RadialLayout(RadialLayoutConfig cfg = {});
 
-    int sectorCount() const;
-    const QVector<Sector> &sectors() const;
+    int sectors() const { return m_cfg.sectors; }
+    const QVector<Sector> &sectorList() const { return m_sectors; }
 
-    int angleToSector(double angleRadians) const;
+    int angleToSector(double xNorm, double yNorm) const;
 
 private:
-    int m_sectorCount;
+    RadialLayoutConfig m_cfg;
     QVector<Sector> m_sectors;
 };
 
-}
+} // namespace radialkb

@@ -15,10 +15,11 @@ State StateMachine::state() const {
 Transition StateMachine::transitionTo(State next, const QString &reason) {
     Transition t{m_state, next, reason};
     m_state = next;
-    logWithTag("[FSM]", QString("%1 -> %2 (%3)")
-        .arg(stateToString(t.from))
-        .arg(stateToString(t.to))
-        .arg(reason));
+    Logging::log(LogLevel::Info, "FSM",
+                 QString("%1 -> %2 (%3)")
+                     .arg(stateToString(t.from))
+                     .arg(stateToString(t.to))
+                     .arg(reason));
     return t;
 }
 

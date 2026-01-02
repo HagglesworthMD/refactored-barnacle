@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QObject>
-#include <QPointF>
 #include <QString>
 
 #include "CommitBridge.h"
@@ -23,9 +22,9 @@ signals:
     void selectionChanged(int sectorIndex);
 
 private:
-    void handleTouchDown(const QPointF &pos);
-    void handleTouchMove(const QPointF &pos);
-    void handleTouchUp(const QPointF &pos);
+    void handleTouchDown(double xNorm, double yNorm);
+    void handleTouchMove(double xNorm, double yNorm);
+    void handleTouchUp(double xNorm, double yNorm);
     void handleAction(const QString &actionType);
 
     StateMachine m_stateMachine;
@@ -34,7 +33,8 @@ private:
     CommitBridge m_commit;
     Haptics m_haptics;
     int m_selectedSector{-1};
-    QPointF m_lastPos;
+    double m_lastX{0.0};
+    double m_lastY{0.0};
 };
 
 }

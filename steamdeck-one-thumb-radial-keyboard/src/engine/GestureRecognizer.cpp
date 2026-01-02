@@ -1,6 +1,6 @@
 #include "GestureRecognizer.h"
 
-#include <QtMath>
+#include <cmath>
 
 namespace radialkb {
 
@@ -8,76 +8,69 @@ GestureRecognizer::GestureRecognizer(GestureThresholds thresholds)
     : m_thresholds(thresholds) {
 }
 
-void GestureRecognizer::onTouchDown(const QPointF &pos) {
+void GestureRecognizer::onTouchDown(const TouchSample &sample) {
     m_active = true;
-    m_startPos = pos;
-    m_timer.restart();
+    m_start = sample;
 }
 
-SwipeDirection GestureRecognizer::onTouchMove(const QPointF &pos) {
+SwipeDir GestureRecognizer::onTouchMove(const TouchSample &sample) {
     if (!m_active) {
-        return SwipeDirection::None;
+        return SwipeDir::None;
     }
-    const QPointF delta = pos - m_startPos;
-    const double distance = std::hypot(delta.x(), delta.y());
-    const int elapsed = static_cast<int>(m_timer.elapsed());
-    if (elapsed == 0) {
-        return SwipeDirection::None;
-    }
-    const double velocity = distance / static_cast<double>(elapsed);
-    if (distance >= m_thresholds.minDistancePx && velocity >= m_thresholds.velocityPxPerMs) {
-        if (qAbs(delta.x()) > qAbs(delta.y())) {
-            return delta.x() > 0 ? SwipeDirection::Right : SwipeDirection::Left;
-        }
-        if (delta.y() > 0) {
-            return SwipeDirection::Down;
-        }
-    }
-    return SwipeDirection::None;
+    return classifySwipe(sample, false);
 }
 
-SwipeDirection GestureRecognizer::onTouchUp(const QPointF &pos) {
+SwipeDir GestureRecognizer::onTouchUp(const TouchSample &sample) {
     if (!m_active) {
-        return SwipeDirection::None;
+        return SwipeDir::None;
     }
     m_active = false;
-    const QPointF delta = pos - m_startPos;
-    const double distance = std::hypot(delta.x(), delta.y());
-    const int elapsed = static_cast<int>(m_timer.elapsed());
-    if (elapsed > m_thresholds.maxDurationMs) {
-        return SwipeDirection::None;
-    }
-    if (elapsed == 0) {
-        return SwipeDirection::None;
-    }
-    const double velocity = distance / static_cast<double>(elapsed);
-    if (distance >= m_thresholds.minDistancePx && velocity >= m_thresholds.velocityPxPerMs) {
-        if (qAbs(delta.x()) > qAbs(delta.y())) {
-            return delta.x() > 0 ? SwipeDirection::Right : SwipeDirection::Left;
-        }
-        if (delta.y() > 0) {
-            return SwipeDirection::Down;
-        }
-    }
-    return SwipeDirection::None;
+    return classifySwipe(sample, true);
 }
 
 const GestureThresholds &GestureRecognizer::thresholds() const {
     return m_thresholds;
 }
 
-QString swipeToString(SwipeDirection direction) {
+SwipeDir GestureRecognizer::classifySwipe(const TouchSample &sample, bool enforceDuration) const {
+    const double dx = sample.x - m_start.x;
+    const double dy = sample.y - m_start.y;
+    const double distance = std::hypot(dx, dy);
+    const double durationMs = static_cast<double>(sample.timestampMs - m_start.timestampMs);
+
+    if (durationMs <= 0.0) {
+        return SwipeDir::None;
+    }
+
+    if (enforceDuration && durationMs > m_thresholds.maxDurationMs) {
+        return SwipeDir::None;
+    }
+
+    const double velocity = distance / durationMs;
+    if (distance < m_thresholds.minDistanceNorm || velocity < m_thresholds.minVelocityNormPerMs) {
+        return SwipeDir::None;
+    }
+
+    if (std::abs(dx) > std::abs(dy)) {
+        return dx > 0 ? SwipeDir::Right : SwipeDir::Left;
+    }
+    return dy > 0 ? SwipeDir::Down : SwipeDir::Up;
+}
+
+const char *swipeToString(SwipeDir direction) {
     switch (direction) {
-    case SwipeDirection::Left:
+    case SwipeDir::Left:
         return "Left";
-    case SwipeDirection::Right:
+    case SwipeDir::Right:
         return "Right";
-    case SwipeDirection::Down:
+    case SwipeDir::Down:
         return "Down";
-    case SwipeDirection::None:
+    case SwipeDir::Up:
+        return "Up";
+    case SwipeDir::None:
         return "None";
     }
     return "None";
 }
 
-}
+} // namespace radialkb

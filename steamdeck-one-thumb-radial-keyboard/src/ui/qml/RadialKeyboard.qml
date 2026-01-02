@@ -58,15 +58,13 @@ Item {
     }
 
     function normalizedX(x) {
-        var cx = width / 2
-        var radius = Math.min(width, height) * 0.45
-        return (x - cx) / radius
+        var value = x / width
+        return Math.max(0, Math.min(1, value))
     }
 
     function normalizedY(y) {
-        var cy = height / 2
-        var radius = Math.min(width, height) * 0.45
-        return (y - cy) / radius
+        var value = y / height
+        return Math.max(0, Math.min(1, value))
     }
 
     function updateSelection(x, y) {
