@@ -8,7 +8,7 @@ Rectangle {
 
     Text {
         anchors.centerIn: parent
-        text: "MVP: single-char sectors"
+        text: "MVP: radial group + letter commit"
         color: "#cfd2d8"
         font.pixelSize: 12
     }

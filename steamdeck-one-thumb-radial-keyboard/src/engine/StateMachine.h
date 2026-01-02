@@ -7,9 +7,8 @@ namespace radialkb {
 enum class State {
     Hidden,
     Idle,
-    Touching,
-    Sliding,
-    GestureCandidate,
+    TrackGroup,
+    TrackLetter,
     Committing,
     Cancelled
 };

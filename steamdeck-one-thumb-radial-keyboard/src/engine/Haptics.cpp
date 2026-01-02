@@ -12,4 +12,8 @@ void Haptics::onCommit() {
     Logging::log(LogLevel::Debug, "ENGINE", "haptics commit (stub)");
 }
 
+void Haptics::onCancel() {
+    Logging::log(LogLevel::Debug, "ENGINE", "haptics cancel (stub)");
+}
+
 }

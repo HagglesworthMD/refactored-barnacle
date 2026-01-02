@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QtMath>
+#include <algorithm>
 
 #include "Logging.h"
 
@@ -43,6 +44,8 @@ QString InputRouter::handleMessage(const QString &line) {
     if ((type == "touch_move" || type == "touch_down") && m_selectedSector >= 0) {
         reply.insert("type", "selection");
         reply.insert("sector", m_selectedSector);
+        reply.insert("letter", m_selectedKey);
+        reply.insert("stage", m_trackingLetter ? "letter" : "group");
     } else {
         reply.insert("type", "ack");
     }
@@ -55,12 +58,8 @@ void InputRouter::handleTouchDown(double xNorm, double yNorm) {
     m_lastY = yNorm;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     m_gestures.onTouchDown(sample);
-    const int sector = m_layout.angleToSector(xNorm, yNorm);
-    if (sector != m_selectedSector) {
-        m_selectedSector = sector;
-        Logging::log(LogLevel::Info, "ENGINE", QString("selection sector %1").arg(sector));
-    }
-    m_stateMachine.transitionTo(State::Touching, "touch_down");
+    enterTrackGroup("touch_down");
+    updateSelection(xNorm, yNorm);
 }
 
 void InputRouter::handleTouchMove(double xNorm, double yNorm) {
@@ -68,19 +67,13 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
     m_lastY = yNorm;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     const SwipeDir swipe = m_gestures.onTouchMove(sample);
-    if (swipe != SwipeDir::None) {
-        m_stateMachine.transitionTo(State::GestureCandidate, "fast_move");
-        Logging::log(LogLevel::Debug, "GESTURE", QString("candidate %1").arg(swipeToString(swipe)));
+    if (swipe == SwipeDir::Down) {
+        m_stateMachine.transitionTo(State::Cancelled, "swipe_down");
+        m_haptics.onCancel();
+        m_stateMachine.transitionTo(State::Idle, "cancel_done");
         return;
     }
-    m_stateMachine.transitionTo(State::Sliding, "touch_move");
-    const int sector = m_layout.angleToSector(xNorm, yNorm);
-    if (sector != m_selectedSector) {
-        m_selectedSector = sector;
-        m_haptics.onSelectionChange();
-        emit selectionChanged(sector);
-        Logging::log(LogLevel::Info, "ENGINE", QString("selection sector %1").arg(sector));
-    }
+    updateSelection(xNorm, yNorm);
 }
 
 void InputRouter::handleTouchUp(double xNorm, double yNorm) {
@@ -89,22 +82,50 @@ void InputRouter::handleTouchUp(double xNorm, double yNorm) {
     if (swipe == SwipeDir::Left) {
         m_commit.commitAction("backspace");
         m_stateMachine.transitionTo(State::Committing, "swipe_left");
-    } else if (swipe == SwipeDir::Right) {
+        m_haptics.onCommit();
+        m_stateMachine.transitionTo(State::Idle, "commit_done");
+        return;
+    }
+    else if (swipe == SwipeDir::Right) {
         m_commit.commitAction("space");
         m_stateMachine.transitionTo(State::Committing, "swipe_right");
-    } else if (swipe == SwipeDir::Down) {
-        m_stateMachine.transitionTo(State::Cancelled, "swipe_down");
-    } else {
-        m_selectedSector = m_layout.angleToSector(xNorm, yNorm);
-        QChar ch = m_layout.sectorList().at(m_selectedSector).primaryChar;
-        if (ch.isNull()) {
-            Logging::log(LogLevel::Warn, "ENGINE", "null char in layout, committing '?'");
-            ch = QChar('?');
-        }
-        m_commit.commitChar(ch);
-        m_stateMachine.transitionTo(State::Committing, "touch_up_commit");
         m_haptics.onCommit();
+        m_stateMachine.transitionTo(State::Idle, "commit_done");
+        return;
     }
+    else if (swipe == SwipeDir::Down) {
+        m_stateMachine.transitionTo(State::Cancelled, "swipe_down");
+        m_haptics.onCancel();
+        m_stateMachine.transitionTo(State::Idle, "cancel_done");
+        return;
+    }
+
+    updateSelection(xNorm, yNorm);
+    if (m_selectedSector < 0) {
+        m_stateMachine.transitionTo(State::Idle, "touch_up_no_selection");
+        return;
+    }
+
+    const int keyCount = m_layout.keyCount(m_selectedSector);
+    if (keyCount <= 0) {
+        Logging::log(LogLevel::Warn, "ENGINE", "empty sector keys, skipping commit");
+        m_stateMachine.transitionTo(State::Idle, "commit_done");
+        return;
+    }
+    const int keyIndex = (m_trackingLetter && m_selectedKey >= 0)
+        ? m_selectedKey
+        : 0;
+    const int clampedIndex = std::clamp(keyIndex, 0, keyCount - 1);
+    const KeyOption &key = m_layout.keyAt(m_selectedSector, clampedIndex);
+    if (key.isAction()) {
+        m_commit.commitAction(key.action);
+    } else if (!key.ch.isNull()) {
+        m_commit.commitChar(key.ch);
+    } else {
+        Logging::log(LogLevel::Warn, "ENGINE", "no key payload to commit");
+    }
+    m_stateMachine.transitionTo(State::Committing, "touch_up_commit");
+    m_haptics.onCommit();
     m_stateMachine.transitionTo(State::Idle, "commit_done");
 }
 
@@ -116,8 +137,68 @@ void InputRouter::handleAction(const QString &actionType) {
     }
     if (actionType == "cancel") {
         m_stateMachine.transitionTo(State::Cancelled, "cancel_action");
+        m_haptics.onCancel();
         m_stateMachine.transitionTo(State::Idle, "cancel_done");
     }
+}
+
+void InputRouter::updateSelection(double xNorm, double yNorm) {
+    constexpr double kDeadzoneRadius = 0.12;
+    constexpr double kInnerRadius = 0.28;
+    constexpr double kInnerHysteresis = 0.03;
+    constexpr double kAngleHysteresis = (3.0 * M_PI / 180.0);
+
+    const double angle = m_layout.angleForPoint(xNorm, yNorm);
+    const double radius = m_layout.radiusForPoint(xNorm, yNorm);
+
+    if (!m_trackingLetter && radius >= kInnerRadius) {
+        enterTrackLetter("enter_inner");
+    } else if (m_trackingLetter && radius < (kInnerRadius - kInnerHysteresis)) {
+        enterTrackGroup("exit_inner");
+    }
+
+    if (radius < kDeadzoneRadius) {
+        if (m_selectedSector != -1 || m_selectedKey != -1) {
+            m_selectedSector = -1;
+            m_selectedKey = -1;
+            emit selectionChanged(m_selectedSector, m_selectedKey, "group");
+            Logging::log(LogLevel::Info, "ENGINE", "selection cleared (deadzone)");
+        }
+        return;
+    }
+
+    const int nextSector = m_layout.angleToSectorWithHysteresis(angle, m_selectedSector, kAngleHysteresis);
+    if (nextSector != m_selectedSector) {
+        m_selectedSector = nextSector;
+        m_selectedKey = -1;
+        m_haptics.onSelectionChange();
+        emit selectionChanged(m_selectedSector, m_selectedKey, m_trackingLetter ? "letter" : "group");
+        Logging::log(LogLevel::Info, "ENGINE", QString("selection sector %1").arg(m_selectedSector));
+    }
+
+    if (m_trackingLetter && m_selectedSector >= 0) {
+        const int nextKey = m_layout.angleToKeyIndexWithHysteresis(
+            angle, m_selectedSector, m_selectedKey, kAngleHysteresis);
+        if (nextKey != m_selectedKey) {
+            m_selectedKey = nextKey;
+            m_haptics.onSelectionChange();
+            emit selectionChanged(m_selectedSector, m_selectedKey, "letter");
+            Logging::log(LogLevel::Info, "ENGINE",
+                         QString("selection key %1:%2").arg(m_selectedSector).arg(m_selectedKey));
+        }
+    } else if (!m_trackingLetter) {
+        m_selectedKey = -1;
+    }
+}
+
+void InputRouter::enterTrackGroup(const QString &reason) {
+    m_trackingLetter = false;
+    m_stateMachine.transitionTo(State::TrackGroup, reason);
+}
+
+void InputRouter::enterTrackLetter(const QString &reason) {
+    m_trackingLetter = true;
+    m_stateMachine.transitionTo(State::TrackLetter, reason);
 }
 
 }

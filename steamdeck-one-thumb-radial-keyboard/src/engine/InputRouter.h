@@ -19,13 +19,16 @@ public:
     QString handleMessage(const QString &line);
 
 signals:
-    void selectionChanged(int sectorIndex);
+    void selectionChanged(int sectorIndex, int keyIndex, const QString &stage);
 
 private:
     void handleTouchDown(double xNorm, double yNorm);
     void handleTouchMove(double xNorm, double yNorm);
     void handleTouchUp(double xNorm, double yNorm);
     void handleAction(const QString &actionType);
+    void updateSelection(double xNorm, double yNorm);
+    void enterTrackGroup(const QString &reason);
+    void enterTrackLetter(const QString &reason);
 
     StateMachine m_stateMachine;
     RadialLayout m_layout;
@@ -33,6 +36,8 @@ private:
     CommitBridge m_commit;
     Haptics m_haptics;
     int m_selectedSector{-1};
+    int m_selectedKey{-1};
+    bool m_trackingLetter{false};
     double m_lastX{0.0};
     double m_lastY{0.0};
 };
