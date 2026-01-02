@@ -29,12 +29,10 @@ QString stateToString(State state) {
         return "Hidden";
     case State::Idle:
         return "Idle";
-    case State::Touching:
-        return "Touching";
-    case State::Sliding:
-        return "Sliding";
-    case State::GestureCandidate:
-        return "GestureCandidate";
+    case State::TrackGroup:
+        return "TrackGroup";
+    case State::TrackLetter:
+        return "TrackLetter";
     case State::Committing:
         return "Committing";
     case State::Cancelled:

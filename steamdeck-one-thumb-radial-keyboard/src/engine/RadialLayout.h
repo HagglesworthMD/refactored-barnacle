@@ -13,9 +13,17 @@ struct RadialLayoutConfig {
     double angleOffsetRad = 0.0;
 };
 
+struct KeyOption {
+    QString label;
+    QChar ch;
+    QString action;
+
+    bool isAction() const { return !action.isEmpty(); }
+};
+
 struct Sector {
     QString label;
-    QChar primaryChar;
+    QVector<KeyOption> keys;
 };
 
 class RadialLayout {
@@ -25,7 +33,19 @@ public:
     int sectors() const { return m_cfg.sectors; }
     const QVector<Sector> &sectorList() const { return m_sectors; }
 
+    double angleForPoint(double xNorm, double yNorm) const;
+    double radiusForPoint(double xNorm, double yNorm) const;
+
     int angleToSector(double xNorm, double yNorm) const;
+    int angleToSector(double angleRad) const;
+    int angleToSectorWithHysteresis(double angleRad, int previousSector, double hysteresisRad) const;
+
+    int angleToKeyIndex(double angleRad, int sectorIndex) const;
+    int angleToKeyIndexWithHysteresis(double angleRad, int sectorIndex, int previousIndex, double hysteresisRad) const;
+
+    int keyCount(int sectorIndex) const;
+    const KeyOption &keyAt(int sectorIndex, int keyIndex) const;
+    const KeyOption &defaultKey(int sectorIndex) const;
 
 private:
     RadialLayoutConfig m_cfg;

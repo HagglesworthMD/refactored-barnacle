@@ -6,6 +6,7 @@ class Haptics {
 public:
     void onSelectionChange();
     void onCommit();
+    void onCancel();
 };
 
 }

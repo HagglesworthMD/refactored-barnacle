@@ -28,7 +28,10 @@ public:
                 }
                 const QJsonObject obj = doc.object();
                 if (obj.contains("sector")) {
-                    emit selectionReceived(obj.value("sector").toInt());
+                    const int sector = obj.value("sector").toInt();
+                    const int letter = obj.value("letter").toInt(-1);
+                    const QString stage = obj.value("stage").toString();
+                    emit selectionReceived(sector, letter, stage);
                 }
             }
         });
@@ -61,7 +64,7 @@ public:
 
 signals:
     void connectedChanged();
-    void selectionReceived(int sector);
+    void selectionReceived(int sector, int letter, const QString &stage);
 
 private:
     void sendJson(const QString &type, double x, double y) {
