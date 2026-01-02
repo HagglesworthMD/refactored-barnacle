@@ -1,4 +1,5 @@
 #include <QCoreApplication>
+#include <QFile>
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QStandardPaths>
@@ -23,7 +24,9 @@ int main(int argc, char *argv[]) {
     Logging::init("ENGINE");
 
     const QString path = socketPath();
-    QLocalServer::removeServer(path);
+    if (QFile::exists(path) && !QLocalServer::removeServer(path)) {
+        Logging::log(LogLevel::Warn, "ENGINE", QString("failed to remove stale socket: %1").arg(path));
+    }
     QLocalServer server;
     if (!server.listen(path)) {
         Logging::log(LogLevel::Error, "ENGINE", QString("failed to listen: %1").arg(server.errorString()));

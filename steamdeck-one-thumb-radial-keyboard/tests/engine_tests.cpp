@@ -17,10 +17,13 @@ private slots:
 };
 
 void EngineTests::angleToSectorMaps() {
-    RadialLayout layout({8, 0.5, 0.5, 0.0});
-    QCOMPARE(layout.angleToSector(1.0, 0.5), 0);
-    QCOMPARE(layout.angleToSector(0.5, 0.0), 6);
-    QCOMPARE(layout.angleToSector(0.0, 0.5), 4);
+    RadialLayout noOffset({8, 0.5, 0.5, 0.0});
+    QCOMPARE(noOffset.angleToSector(1.0, 0.5), 0);
+    QCOMPARE(noOffset.angleToSector(0.5, 0.0), 6);
+    QCOMPARE(noOffset.angleToSector(0.0, 0.5), 4);
+
+    RadialLayout topIsZero({8, 0.5, 0.5, M_PI / 2.0});
+    QCOMPARE(topIsZero.angleToSector(0.5, 0.0), 0);
 }
 
 void EngineTests::swipeClassification() {
