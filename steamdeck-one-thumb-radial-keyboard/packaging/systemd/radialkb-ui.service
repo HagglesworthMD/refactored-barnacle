@@ -1,0 +1,10 @@
+[Unit]
+Description=Radial Keyboard UI Overlay
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/radialkb-ui
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
