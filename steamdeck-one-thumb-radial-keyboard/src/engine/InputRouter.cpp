@@ -4,6 +4,7 @@
 #include <QJsonDocument>
 #include <QChar>
 #include <QJsonObject>
+#include <QDebug>
 #include <QtMath>
 #include <algorithm>
 
@@ -279,3 +280,37 @@ void InputRouter::enterTrackLetter(const QString &reason) {
 }
 
 }
+
+namespace radialkb {
+
+// ─────────────────────────────────────────────────────────────
+// Phase 1.5: InputRouter explicit FSM helpers
+// Keep behavior stable; transitions are for clarity + debugging.
+// ─────────────────────────────────────────────────────────────
+const char* InputRouter::stateName(RouterState s) {
+    switch (s) {
+    case RouterState::Idle: return "Idle";
+    case RouterState::Hovering: return "Hovering";
+    case RouterState::Touching: return "Touching";
+    case RouterState::Dragging: return "Dragging";
+    case RouterState::Swiping: return "Swiping";
+    case RouterState::Cancelled: return "Cancelled";
+    }
+    return "Unknown";
+}
+
+void InputRouter::resetCtx() {
+    m_ctx = GestureCtx{};
+}
+
+void InputRouter::transitionTo(RouterState next, const char* reason) {
+    if (next == m_state) return;
+    const auto prev = m_state;
+    m_state = next;
+    qInfo() << "InputRouter: state" << stateName(prev) << "->" << stateName(next) << "reason=" << (reason ? reason : "");
+    if (next == RouterState::Idle) {
+        resetCtx();
+    }
+}
+
+} // namespace radialkb
