@@ -45,4 +45,26 @@ void CommitBridge::commitAction(const QString &action) {
     Logging::log(LogLevel::Warn, "COMMIT", QString("Unknown action '%1'").arg(action));
 }
 
+void CommitBridge::commitAction(const KeyAction &action) {
+    if (action.type == KeyAction::None) {
+        return;
+    }
+    if (action.type == KeyAction::Char) {
+        commitChar(QChar(action.ch));
+        return;
+    }
+    if (action.type == KeyAction::Space) {
+        keyboard().sendKey(KEY_SPACE);
+        return;
+    }
+    if (action.type == KeyAction::Backspace) {
+        keyboard().sendKey(KEY_BACKSPACE);
+        return;
+    }
+    if (action.type == KeyAction::Enter) {
+        keyboard().sendKey(KEY_ENTER);
+        return;
+    }
+}
+
 }

@@ -87,8 +87,9 @@ Item {
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
-        onExited: (mouse) => {
-            if (mouse.buttons & Qt.LeftButton) {
+        onExited: {
+            // Some Qt versions do not provide mouse.buttons on onExited; use MouseArea state.
+            if (pressed) {
                 return
             }
             if (root.hoverTracking) {
