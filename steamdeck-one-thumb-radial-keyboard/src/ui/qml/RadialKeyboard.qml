@@ -17,6 +17,9 @@ Item {
     property real innerRadius: 0.28
     property real innerHysteresis: 0.03
     property bool localTrackingLetter: false
+    property bool hoverTracking: false
+    property real lastHoverX: width / 2
+    property real lastHoverY: height / 2
     property var sectorKeys: [
         ["E", "T", "A", "O"],
         ["I", "N", "S", "H"],
@@ -84,6 +87,17 @@ Item {
     MouseArea {
         anchors.fill: parent
         hoverEnabled: true
+        onExited: {
+            // Some Qt versions do not provide mouse.buttons on onExited; use MouseArea state.
+            if (pressed) {
+                return
+            }
+            if (root.hoverTracking) {
+                uiBridge.sendTouchUp(root.normalizedX(root.lastHoverX), root.normalizedY(root.lastHoverY))
+                root.hoverTracking = false
+            }
+            root.updateSelection(width / 2, height / 2)
+        }
         onPressed: (mouse) => {
             if (mouse.button !== Qt.LeftButton) {
                 return
@@ -92,9 +106,19 @@ Item {
             uiBridge.sendTouchDown(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
         onPositionChanged: (mouse) => {
-            if (!(mouse.buttons & Qt.LeftButton)) {
+            if (mouse.buttons & Qt.LeftButton) {
+                root.lastHoverX = mouse.x
+                root.lastHoverY = mouse.y
+                root.updateSelection(mouse.x, mouse.y)
+                uiBridge.sendTouchMove(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
                 return
             }
+            if (!root.hoverTracking) {
+                root.hoverTracking = true
+                uiBridge.sendTouchDown(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
+            }
+            root.lastHoverX = mouse.x
+            root.lastHoverY = mouse.y
             root.updateSelection(mouse.x, mouse.y)
             uiBridge.sendTouchMove(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
@@ -188,7 +212,12 @@ Item {
 
     Connections {
         target: uiBridge
-        function onSelectionReceived(sector, letter, stage) {
+        function onSelectionReceived(sector, letter, stage, clearSelection) {
+            if (clearSelection || sector === -1) {
+                root.engineSelectedSector = -1
+                root.engineSelectedLetter = -1
+                return
+            }
             root.engineSelectedSector = sector
             root.engineSelectedLetter = letter
         }

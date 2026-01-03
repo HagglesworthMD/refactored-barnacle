@@ -38,8 +38,8 @@ void EngineTests::swipeClassification() {
 void EngineTests::stateTransitions() {
     StateMachine machine;
     QCOMPARE(machine.state(), State::Idle);
-    machine.transitionTo(State::Touching, "test_down");
-    QCOMPARE(machine.state(), State::Touching);
+    machine.transitionTo(State::TrackGroup, "test_down");
+    QCOMPARE(machine.state(), State::TrackGroup);
     machine.transitionTo(State::Committing, "test_commit");
     QCOMPARE(machine.state(), State::Committing);
 }
@@ -48,7 +48,8 @@ void EngineTests::layoutExtendsToTwelve() {
     RadialLayout layout({12, 0.5, 0.5, 0.0});
     QCOMPARE(layout.sectorList().size(), 12);
     for (const auto &sector : layout.sectorList()) {
-        QVERIFY(!sector.primaryChar.isNull());
+        QVERIFY(!sector.keys.isEmpty());
+        QVERIFY(!sector.keys.first().label.isEmpty());
     }
 }
 

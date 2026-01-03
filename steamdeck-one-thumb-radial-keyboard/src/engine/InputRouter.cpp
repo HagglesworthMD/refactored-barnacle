@@ -2,6 +2,7 @@
 
 #include <QDateTime>
 #include <QJsonDocument>
+#include <QChar>
 #include <QJsonObject>
 #include <QtMath>
 #include <algorithm>
@@ -9,6 +10,72 @@
 #include "Logging.h"
 
 namespace radialkb {
+
+namespace {
+
+// TODO: Align with UI layout once the key counts are centralized.
+constexpr int kKeysPerSector = 4;
+
+int selectionIndex(int sector, int key) {
+    if (sector < 0 || key < 0) {
+        return -1;
+    }
+    return (sector * kKeysPerSector) + key;
+}
+
+KeyAction mapSelectionToAction(int sector, int key) {
+    const int idx = selectionIndex(sector, key);
+    if (idx >= 0 && idx < 26) {
+        return KeyAction::makeChar(static_cast<char>('a' + idx));
+    }
+    if (idx == 26) {
+        return KeyAction::make(KeyAction::Space);
+    }
+    if (idx == 27) {
+        return KeyAction::make(KeyAction::Backspace);
+    }
+    if (idx == 28) {
+        return KeyAction::make(KeyAction::Enter);
+    }
+    return KeyAction::make(KeyAction::None);
+}
+
+QString keycodeLabel(const KeyAction &action) {
+    switch (action.type) {
+    case KeyAction::Char:
+        if (action.ch >= 'a' && action.ch <= 'z') {
+            return QString("KEY_%1").arg(QChar(action.ch).toUpper());
+        }
+        return QStringLiteral("KEY_UNKNOWN");
+    case KeyAction::Space:
+        return QStringLiteral("KEY_SPACE");
+    case KeyAction::Backspace:
+        return QStringLiteral("KEY_BACKSPACE");
+    case KeyAction::Enter:
+        return QStringLiteral("KEY_ENTER");
+    case KeyAction::None:
+        return QStringLiteral("KEY_NONE");
+    }
+    return QStringLiteral("KEY_NONE");
+}
+
+QString actionLabel(const KeyAction &action) {
+    switch (action.type) {
+    case KeyAction::Char:
+        return QString("Char('%1')").arg(QChar(action.ch));
+    case KeyAction::Space:
+        return QStringLiteral("Space");
+    case KeyAction::Backspace:
+        return QStringLiteral("Backspace");
+    case KeyAction::Enter:
+        return QStringLiteral("Enter");
+    case KeyAction::None:
+        return QStringLiteral("None");
+    }
+    return QStringLiteral("None");
+}
+
+} // namespace
 
 InputRouter::InputRouter(QObject *parent)
     : QObject(parent),
@@ -25,12 +92,18 @@ QString InputRouter::handleMessage(const QString &line) {
 
     const QJsonObject obj = doc.object();
     const QString type = obj.value("type").toString();
-    if (type == "touch_down") {
-        handleTouchDown(obj.value("x").toDouble(), obj.value("y").toDouble());
-    } else if (type == "touch_move") {
-        handleTouchMove(obj.value("x").toDouble(), obj.value("y").toDouble());
-    } else if (type == "touch_up") {
-        handleTouchUp(obj.value("x").toDouble(), obj.value("y").toDouble());
+    if (type == "touch_down" || type == "touch_move" || type == "touch_up") {
+        const double x = obj.value("x").toDouble();
+        const double y = obj.value("y").toDouble();
+        Logging::log(LogLevel::Debug, "ENGINE",
+                     QString("input %1 x=%2 y=%3").arg(type).arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
+        if (type == "touch_down") {
+            handleTouchDown(x, y);
+        } else if (type == "touch_move") {
+            handleTouchMove(x, y);
+        } else {
+            handleTouchUp(x, y);
+        }
     } else if (type == "action") {
         handleAction(obj.value("action").toString());
     } else if (type == "ui_show") {
@@ -41,11 +114,16 @@ QString InputRouter::handleMessage(const QString &line) {
 
     QJsonObject reply;
     reply.insert("ack", true);
-    if ((type == "touch_move" || type == "touch_down") && m_selectedSector >= 0) {
+    if (type == "touch_move" || type == "touch_down") {
+        const bool clearSelection = (m_selectedSector < 0);
         reply.insert("type", "selection");
         reply.insert("sector", m_selectedSector);
         reply.insert("letter", m_selectedKey);
         reply.insert("stage", m_trackingLetter ? "letter" : "group");
+        reply.insert("clearSelection", clearSelection);
+        if (clearSelection) {
+            Logging::log(LogLevel::Debug, "ENGINE", "selection cleared (reply)");
+        }
     } else {
         reply.insert("type", "ack");
     }
@@ -106,25 +184,24 @@ void InputRouter::handleTouchUp(double xNorm, double yNorm) {
         return;
     }
 
-    const int keyCount = m_layout.keyCount(m_selectedSector);
-    if (keyCount <= 0) {
-        Logging::log(LogLevel::Warn, "ENGINE", "empty sector keys, skipping commit");
-        m_stateMachine.transitionTo(State::Idle, "commit_done");
-        return;
-    }
     const int keyIndex = (m_trackingLetter && m_selectedKey >= 0)
         ? m_selectedKey
         : 0;
-    const int clampedIndex = std::clamp(keyIndex, 0, keyCount - 1);
-    const KeyOption &key = m_layout.keyAt(m_selectedSector, clampedIndex);
-    if (key.isAction()) {
-        m_commit.commitAction(key.action);
-    } else if (!key.ch.isNull()) {
-        m_commit.commitChar(key.ch);
-    } else {
-        Logging::log(LogLevel::Warn, "ENGINE", "no key payload to commit");
+    const int idx = selectionIndex(m_selectedSector, keyIndex);
+    const KeyAction action = mapSelectionToAction(m_selectedSector, keyIndex);
+    Logging::log(LogLevel::Info, "COMMIT",
+                 QString("sel=%1:%2 idx=%3 action=%4 keycode=%5")
+                     .arg(m_selectedSector)
+                     .arg(keyIndex)
+                     .arg(idx)
+                     .arg(actionLabel(action))
+                     .arg(keycodeLabel(action)));
+    if (action.type == KeyAction::None) {
+        m_stateMachine.transitionTo(State::Idle, "commit_none");
+        return;
     }
     m_stateMachine.transitionTo(State::Committing, "touch_up_commit");
+    m_commit.commitAction(action);
     m_haptics.onCommit();
     m_stateMachine.transitionTo(State::Idle, "commit_done");
 }

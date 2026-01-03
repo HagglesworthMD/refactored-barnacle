@@ -4,7 +4,11 @@
 #include <QLocalSocket>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDBusConnection>
+#include <QDBusError>
 #include <QStandardPaths>
+#include <QWindow>
+#include <QPointer>
 #include <unistd.h>
 
 class UiBridge : public QObject {
@@ -27,11 +31,16 @@ public:
                     continue;
                 }
                 const QJsonObject obj = doc.object();
-                if (obj.contains("sector")) {
-                    const int sector = obj.value("sector").toInt();
-                    const int letter = obj.value("letter").toInt(-1);
+                const bool clearSelection = obj.value("clearSelection").toBool(false);
+                if (obj.contains("sector") || clearSelection) {
+                    int sector = obj.value("sector").toInt(-1);
+                    int letter = obj.value("letter").toInt(-1);
                     const QString stage = obj.value("stage").toString();
-                    emit selectionReceived(sector, letter, stage);
+                    if (clearSelection) {
+                        sector = -1;
+                        letter = -1;
+                    }
+                    emit selectionReceived(sector, letter, stage, clearSelection);
                 }
             }
         });
@@ -47,6 +56,8 @@ public:
     Q_INVOKABLE void sendTouchDown(double x, double y) { sendJson("touch_down", x, y); }
     Q_INVOKABLE void sendTouchMove(double x, double y) { sendJson("touch_move", x, y); }
     Q_INVOKABLE void sendTouchUp(double x, double y) { sendJson("touch_up", x, y); }
+    void sendUiShow() { sendType("ui_show"); }
+    void sendUiHide() { sendType("ui_hide"); }
     Q_INVOKABLE void sendAction(const QString &action) {
         QJsonObject obj;
         obj.insert("type", "action");
@@ -64,9 +75,15 @@ public:
 
 signals:
     void connectedChanged();
-    void selectionReceived(int sector, int letter, const QString &stage);
+    void selectionReceived(int sector, int letter, const QString &stage, bool clearSelection);
 
 private:
+    void sendType(const QString &type) {
+        QJsonObject obj;
+        obj.insert("type", type);
+        sendObject(obj);
+    }
+
     void sendJson(const QString &type, double x, double y) {
         QJsonObject obj;
         obj.insert("type", type);
@@ -95,6 +112,39 @@ private:
     QLocalSocket m_socket;
 };
 
+class OverlayController : public QObject {
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.radialkb.Overlay")
+public:
+    OverlayController(QWindow *window, UiBridge *bridge, QObject *parent = nullptr)
+        : QObject(parent), m_window(window), m_bridge(bridge) {}
+
+public slots:
+    void Show() { setVisible(true); }
+    void Hide() { setVisible(false); }
+    void Toggle() {
+        if (!m_window) {
+            return;
+        }
+        setVisible(!m_window->isVisible());
+    }
+    bool Status() const { return m_window && m_window->isVisible(); }
+
+private:
+    void setVisible(bool visible) {
+        if (!m_window) {
+            return;
+        }
+        m_window->setVisible(visible);
+        if (m_bridge) {
+            visible ? m_bridge->sendUiShow() : m_bridge->sendUiHide();
+        }
+    }
+
+    QPointer<QWindow> m_window;
+    UiBridge *m_bridge = nullptr;
+};
+
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
 
@@ -110,6 +160,26 @@ int main(int argc, char *argv[]) {
             QCoreApplication::exit(-1);
     }, Qt::QueuedConnection);
     engine.load(url);
+
+    QWindow *rootWindow = nullptr;
+    if (!engine.rootObjects().isEmpty()) {
+        rootWindow = qobject_cast<QWindow *>(engine.rootObjects().first());
+    }
+    OverlayController controller(rootWindow, &bridge);
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (bus.isConnected()) {
+        if (!bus.registerService(QStringLiteral("org.radialkb.Overlay"))) {
+            qWarning() << "Failed to register D-Bus service org.radialkb.Overlay:"
+                       << bus.lastError().message();
+        }
+        if (!bus.registerObject(QStringLiteral("/org/radialkb/Overlay"), &controller,
+                                QDBusConnection::ExportAllSlots)) {
+            qWarning() << "Failed to register D-Bus object /org/radialkb/Overlay:"
+                       << bus.lastError().message();
+        }
+    } else {
+        qWarning() << "D-Bus session bus unavailable:" << bus.lastError().message();
+    }
 
     return app.exec();
 }

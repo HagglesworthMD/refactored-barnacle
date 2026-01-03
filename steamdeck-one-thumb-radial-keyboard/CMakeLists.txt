@@ -5,13 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Test Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Test Network DBus)
 
 add_executable(radialkb-ui
     src/ui/main.cpp
 )
 
 target_link_libraries(radialkb-ui PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Network)
+target_link_libraries(radialkb-ui PRIVATE Qt6::DBus)
 
 target_compile_definitions(radialkb-ui PRIVATE RADIALKB_QML_DIR="${CMAKE_CURRENT_SOURCE_DIR}/src/ui/qml")
 
@@ -29,6 +30,12 @@ add_executable(radialkb-engine
 
 target_link_libraries(radialkb-engine PRIVATE Qt6::Core Qt6::Network)
 
+add_executable(radialkbctl
+    src/ui/radialkbctl.cpp
+)
+
+target_link_libraries(radialkbctl PRIVATE Qt6::Core Qt6::DBus)
+
 add_executable(engine_tests
     tests/engine_tests.cpp
     src/engine/RadialLayout.cpp
@@ -39,4 +46,4 @@ add_executable(engine_tests
 
 target_link_libraries(engine_tests PRIVATE Qt6::Core Qt6::Test)
 
-install(TARGETS radialkb-ui radialkb-engine RUNTIME DESTINATION bin)
+install(TARGETS radialkb-ui radialkb-engine radialkbctl RUNTIME DESTINATION bin)
