@@ -9,7 +9,9 @@
 #include "GestureRecognizer.h"
 #include "Haptics.h"
 #include "RadialLayout.h"
+#ifdef RADIALKB_LEGACY_ROUTER_SM
 #include "StateMachine.h"
+#endif
 
 namespace radialkb {
 
@@ -20,10 +22,8 @@ public:
     enum class RouterState {
         Idle,
         Hovering,
-        Touching,
-        Dragging,
-        Swiping,
-        Cancelled,
+        CommitChar,
+        SwipeCapture,
     };
     static const char* stateName(RouterState s);
     RouterState state() const { return m_state; }
@@ -48,6 +48,8 @@ private:
 
     void resetCtx();
     void transitionTo(RouterState next, const char* reason);
+    void clearSelection(const char* reason);
+    static double clamp01(double value);
 
     RouterState m_state = RouterState::Idle;
     GestureCtx m_ctx;
@@ -60,7 +62,9 @@ private:
     void enterTrackGroup(const QString &reason);
     void enterTrackLetter(const QString &reason);
 
+#ifdef RADIALKB_LEGACY_ROUTER_SM
     StateMachine m_stateMachine;
+#endif
     RadialLayout m_layout;
     GestureRecognizer m_gestures;
     CommitBridge m_commit;
