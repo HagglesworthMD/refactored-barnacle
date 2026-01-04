@@ -13,6 +13,10 @@
 #include "StateMachine.h"
 #endif
 
+// INTENT: InputRouter is the single source of truth for interpreting trackpad input.
+// INTENT: Routing is FSM-driven; commits must be at-most-once per gesture session.
+// INTENT: Cancel must reliably reset state; haptics fire only on meaningful transitions.
+
 namespace radialkb {
 
 class InputRouter : public QObject {

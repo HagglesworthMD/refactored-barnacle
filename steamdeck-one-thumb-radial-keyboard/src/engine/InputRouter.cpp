@@ -9,33 +9,28 @@
 
 #include "Logging.h"
 
+// INTENT: Event ordering here is critical. Prevent commit+swipe races by consuming touch-up
+// INTENT: associated with pending commits before gesture classification. Prefer minimal diffs.
+
 namespace radialkb {
 
 namespace {
 
-// TODO: Align with UI layout once the key counts are centralized.
-constexpr int kKeysPerSector = 4;
-
-int selectionIndex(int sector, int key) {
-    if (sector < 0 || key < 0) {
-        return -1;
+KeyAction keyOptionToAction(const KeyOption &option) {
+    if (option.isAction()) {
+        if (option.action == "space") {
+            return KeyAction::make(KeyAction::Space);
+        }
+        if (option.action == "backspace") {
+            return KeyAction::make(KeyAction::Backspace);
+        }
+        if (option.action == "enter") {
+            return KeyAction::make(KeyAction::Enter);
+        }
+        return KeyAction::make(KeyAction::None);
     }
-    return (sector * kKeysPerSector) + key;
-}
-
-KeyAction mapSelectionToAction(int sector, int key) {
-    const int idx = selectionIndex(sector, key);
-    if (idx >= 0 && idx < 26) {
-        return KeyAction::makeChar(static_cast<char>('a' + idx));
-    }
-    if (idx == 26) {
-        return KeyAction::make(KeyAction::Space);
-    }
-    if (idx == 27) {
-        return KeyAction::make(KeyAction::Backspace);
-    }
-    if (idx == 28) {
-        return KeyAction::make(KeyAction::Enter);
+    if (!option.ch.isNull()) {
+        return KeyAction::makeChar(option.ch.toLatin1());
     }
     return KeyAction::make(KeyAction::None);
 }
@@ -219,13 +214,23 @@ void InputRouter::handleTouchUp(double xNorm, double yNorm) {
     const int keyIndex = (m_trackingLetter && m_selectedKey >= 0)
         ? m_selectedKey
         : 0;
-    const int idx = selectionIndex(m_selectedSector, keyIndex);
-    const KeyAction action = mapSelectionToAction(m_selectedSector, keyIndex);
+    const int keyCount = m_layout.keyCount(m_selectedSector);
+    int clampedKeyIndex = 0;
+    if (keyCount > 0 && keyIndex >= 0 && keyIndex < keyCount) {
+        clampedKeyIndex = keyIndex;
+    }
+    KeyAction action = KeyAction::make(KeyAction::None);
+    QString keyLabel = QStringLiteral("None");
+    if (keyCount > 0) {
+        const KeyOption &option = m_layout.keyAt(m_selectedSector, clampedKeyIndex);
+        action = keyOptionToAction(option);
+        keyLabel = option.label;
+    }
     Logging::log(LogLevel::Info, "COMMIT",
-                 QString("sel=%1:%2 idx=%3 action=%4 keycode=%5")
+                 QString("sel=%1:%2 label=%3 action=%4 keycode=%5")
                      .arg(m_selectedSector)
-                     .arg(keyIndex)
-                     .arg(idx)
+                     .arg(clampedKeyIndex)
+                     .arg(keyLabel)
                      .arg(actionLabel(action))
                      .arg(keycodeLabel(action)));
     if (action.type == KeyAction::None) {

@@ -3,6 +3,9 @@ import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
 import Qt.labs.settings 1.1
 
+// INTENT: Overlay window must remain non-focus-stealing; show/hide should avoid flicker.
+// INTENT: Future: draggable UI + pin toggle should not disrupt active input context.
+
 Window {
     id: overlay
     // Steam Deck left-trackpad ergonomic placement
