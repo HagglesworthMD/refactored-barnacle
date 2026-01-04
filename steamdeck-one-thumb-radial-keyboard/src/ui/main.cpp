@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QCoreApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QLocalSocket>
@@ -158,6 +159,9 @@ private:
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
 
+    QCoreApplication::setOrganizationName("radialkb");
+    QCoreApplication::setOrganizationDomain("radialkb.local");
+    QCoreApplication::setApplicationName("radialkb-ui");
     QQmlApplicationEngine engine;
     UiBridge bridge;
     engine.rootContext()->setContextProperty("uiBridge", &bridge);
