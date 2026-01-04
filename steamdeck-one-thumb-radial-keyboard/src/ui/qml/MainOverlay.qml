@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.15
-import Qt.labs.settings 1.1
+import QtCore
 
 Window {
     id: overlay
@@ -21,16 +21,19 @@ Window {
     visibility: Window.Windowed
     visible: true
     opacity: uiSettings.kbOpacity
-    x: leftPadOffsetX
-    y: leftPadOffsetY
+    x: uiSettings.overlayX
+    y: uiSettings.overlayY
 
     // Persisted UI preferences
     Settings {
         id: uiSettings
         property real kbOpacity: 0.85
+        property int overlayX: leftPadOffsetX
+        property int overlayY: leftPadOffsetY
     }
 
     Component.onCompleted: {
+        console.log("[UI] Position loaded from settings: x=" + uiSettings.overlayX + " y=" + uiSettings.overlayY)
         uiBridge.connectEngine()
     }
 
@@ -139,6 +142,99 @@ Window {
             onClicked: {
                 if (opacityPopup.opened) opacityPopup.close()
                 else opacityPopup.open()
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Drag handle (top-left), requires long-press to activate
+    // ─────────────────────────────────────────────────────────────
+    property bool dragActive: false
+    property real dragStartMouseX: 0
+    property real dragStartMouseY: 0
+    property real dragStartWindowX: 0
+    property real dragStartWindowY: 0
+
+    function clampPosition(newX, newY) {
+        var margin = 20
+        var clampedX = Math.max(margin, Math.min(Screen.width - width - margin, newX))
+        var clampedY = Math.max(margin, Math.min(Screen.height - height - margin, newY))
+        return Qt.point(clampedX, clampedY)
+    }
+
+    function savePosition() {
+        uiSettings.overlayX = overlay.x
+        uiSettings.overlayY = overlay.y
+        console.log("[UI] Position saved: x=" + overlay.x + " y=" + overlay.y)
+    }
+
+    Rectangle {
+        id: dragHandle
+        width: 32
+        height: 32
+        radius: 16
+        color: "#000000"
+        opacity: dragHandleMouseArea.pressed ? 0.6 : (dragHandleMouseArea.containsMouse ? 0.45 : 0.30)
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.topMargin: 6
+        anchors.leftMargin: 6
+
+        Text {
+            anchors.centerIn: parent
+            text: "⋮⋮"
+            color: "white"
+            font.pixelSize: 12
+            rotation: 90
+        }
+
+        MouseArea {
+            id: dragHandleMouseArea
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.LeftButton
+            property bool longPressActivated: false
+
+            Timer {
+                id: longPressTimer
+                interval: 250
+                repeat: false
+                onTriggered: {
+                    dragHandleMouseArea.longPressActivated = true
+                    overlay.dragActive = true
+                    console.log("[UI] Drag activated (long-press detected)")
+                }
+            }
+
+            onPressed: (mouse) => {
+                longPressActivated = false
+                overlay.dragStartMouseX = mouse.x
+                overlay.dragStartMouseY = mouse.y
+                overlay.dragStartWindowX = overlay.x
+                overlay.dragStartWindowY = overlay.y
+                longPressTimer.start()
+            }
+
+            onReleased: {
+                longPressTimer.stop()
+                if (overlay.dragActive) {
+                    overlay.dragActive = false
+                    overlay.savePosition()
+                    console.log("[UI] Drag ended")
+                }
+                longPressActivated = false
+            }
+
+            onPositionChanged: (mouse) => {
+                if (overlay.dragActive && longPressActivated) {
+                    var deltaX = mouse.x - overlay.dragStartMouseX
+                    var deltaY = mouse.y - overlay.dragStartMouseY
+                    var newX = overlay.dragStartWindowX + deltaX
+                    var newY = overlay.dragStartWindowY + deltaY
+                    var clamped = overlay.clampPosition(newX, newY)
+                    overlay.x = clamped.x
+                    overlay.y = clamped.y
+                }
             }
         }
     }
