@@ -12,6 +12,9 @@
 #include <QPointer>
 #include <unistd.h>
 
+// INTENT: UI overlay must NOT steal focus from the target application.
+// INTENT: Keep the overlay responsive and non-invasive; diagnostics should be high-signal.
+
 class UiBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)

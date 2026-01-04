@@ -1,5 +1,8 @@
 import QtQuick 2.15
 
+// INTENT: QML renders state but should not become the authority for input interpretation.
+// INTENT: Keep visuals lightweight; avoid adding focus-stealing Items.
+
 Item {
     id: root
     property int sectorCount: 8
