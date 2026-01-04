@@ -184,7 +184,12 @@ void InputRouter::handleTouchUp(double xNorm, double yNorm) {
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     const SwipeDir swipe = m_gestures.onTouchUp(sample);
     if (!m_swipePath.empty()) {
-        Logging::log(LogLevel::Info, "SWIPE", QString("SwipePath points=%1").arg(m_swipePath.points.size()));
+        Logging::log(LogLevel::Info, "SWIPE",
+                     QString("SwipePath points=%1 length=%2 maxR=%3 turns=%4")
+                         .arg(m_swipePath.points.size())
+                         .arg(m_swipePath.length(), 0, 'f', 3)
+                         .arg(m_swipePath.maxRadius(), 0, 'f', 3)
+                         .arg(m_swipePath.directionChanges()));
     }
     m_swipePath.clear();
     if (m_skipCommitOnTouchUp) {
