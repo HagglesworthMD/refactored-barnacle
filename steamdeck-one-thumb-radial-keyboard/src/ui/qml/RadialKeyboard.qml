@@ -31,6 +31,21 @@ Item {
         ["␠", "⌫", "↵"]
     ]
 
+    // ─────────────────────────────────────────────────────────────
+    // Animation state (UI-only, does not affect engine/commit logic)
+    // ─────────────────────────────────────────────────────────────
+    property real sectorPulseScale: 1.0       // Animates on sector change
+    property real sectorPulseOpacity: 0.0     // Pulse glow opacity
+    property real letterPopScale: 1.0         // Animates on letter change
+    property real commitGlowIntensity: 0.0    // Commit flash effect
+    property real magneticOffsetX: 0.0        // Magnetic pull toward pointer
+    property real magneticOffsetY: 0.0
+    property real smoothPointerX: width / 2   // Smoothed pointer position
+    property real smoothPointerY: height / 2
+
+    Behavior on smoothPointerX { SmoothedAnimation { velocity: 1200; duration: 80 } }
+    Behavior on smoothPointerY { SmoothedAnimation { velocity: 1200; duration: 80 } }
+
     signal selectionChanged(int sector, int letter)
 
     Canvas {
@@ -44,20 +59,41 @@ Item {
             var radius = Math.min(width, height) * 0.45
             var sectorSize = 2 * Math.PI / root.sectorCount
 
+            // Draw sectors with pulse animation
             for (var i = 0; i < root.sectorCount; i++) {
+                var isActiveSector = (i === root.activeSector)
+                var sectorRadius = radius * (isActiveSector ? root.sectorPulseScale : 1.0)
                 var startAngle = (i * sectorSize) - Math.PI / 2
                 var endAngle = startAngle + sectorSize
+
+                ctx.save()
+                ctx.translate(centerX, centerY)
+                if (isActiveSector && root.sectorPulseScale !== 1.0) {
+                    ctx.scale(root.sectorPulseScale, root.sectorPulseScale)
+                }
                 ctx.beginPath()
-                ctx.moveTo(centerX, centerY)
-                ctx.arc(centerX, centerY, radius, startAngle, endAngle)
+                ctx.moveTo(0, 0)
+                ctx.arc(0, 0, radius, startAngle, endAngle)
                 ctx.closePath()
-                ctx.fillStyle = (i === root.activeSector) ? root.highlightColor : root.baseColor
+                ctx.fillStyle = isActiveSector ? root.highlightColor : root.baseColor
                 ctx.fill()
                 ctx.strokeStyle = "#2a2c30"
                 ctx.lineWidth = 2
                 ctx.stroke()
+
+                // Pulse glow overlay
+                if (isActiveSector && root.sectorPulseOpacity > 0.01) {
+                    ctx.beginPath()
+                    ctx.moveTo(0, 0)
+                    ctx.arc(0, 0, radius, startAngle, endAngle)
+                    ctx.closePath()
+                    ctx.fillStyle = "rgba(74, 163, 255," + root.sectorPulseOpacity + ")"
+                    ctx.fill()
+                }
+                ctx.restore()
             }
 
+            // Draw letters with pop/magnetic animation
             ctx.textAlign = "center"
             ctx.textBaseline = "middle"
             ctx.font = "16px sans-serif"
@@ -71,14 +107,46 @@ Item {
                     var textX = centerX + Math.cos(keyAngle) * textRadius
                     var textY = centerY + Math.sin(keyAngle) * textRadius
                     var isActive = (sectorIndex === root.activeSector) && (keyIndex === root.activeLetter)
+
+                    // Apply magnetic offset to active letter
                     if (isActive) {
+                        textX += root.magneticOffsetX
+                        textY += root.magneticOffsetY
+                    }
+
+                    var scale = isActive ? root.letterPopScale : 1.0
+
+                    // Letter background circle
+                    if (isActive) {
+                        ctx.save()
+                        ctx.translate(textX, textY)
+                        if (scale !== 1.0) {
+                            ctx.scale(scale, scale)
+                        }
                         ctx.beginPath()
                         ctx.fillStyle = "rgba(255,255,255,0.18)"
-                        ctx.arc(textX, textY, 16, 0, 2 * Math.PI)
+                        ctx.arc(0, 0, 16, 0, 2 * Math.PI)
                         ctx.fill()
+
+                        // Commit glow overlay
+                        if (root.commitGlowIntensity > 0.01) {
+                            ctx.beginPath()
+                            ctx.fillStyle = "rgba(74, 163, 255," + root.commitGlowIntensity + ")"
+                            ctx.arc(0, 0, 20, 0, 2 * Math.PI)
+                            ctx.fill()
+                        }
+                        ctx.restore()
+                    }
+
+                    // Letter text
+                    ctx.save()
+                    ctx.translate(textX, textY)
+                    if (scale !== 1.0) {
+                        ctx.scale(scale, scale)
                     }
                     ctx.fillStyle = isActive ? root.letterHighlight : root.letterColor
-                    ctx.fillText(keys[keyIndex], textX, textY)
+                    ctx.fillText(keys[keyIndex], 0, 0)
+                    ctx.restore()
                 }
             }
         }
@@ -107,6 +175,8 @@ Item {
             uiBridge.sendTouchDown(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
         onPositionChanged: (mouse) => {
+            root.smoothPointerX = mouse.x
+            root.smoothPointerY = mouse.y
             if (mouse.buttons & Qt.LeftButton) {
                 root.lastHoverX = mouse.x
                 root.lastHoverY = mouse.y
@@ -229,7 +299,8 @@ Item {
         } else if (label === "↵") {
             charToSend = "\n"
         }
-        console.log("[UI] commitSelection", label, "->", charToSend)
+        console.log("[UI] Commit:", label)
+        commitGlowAnim.restart()
         uiBridge.sendChar(charToSend)
         if (label === "␠") {
             return true
@@ -239,10 +310,27 @@ Item {
 
     onSelectedSectorChanged: canvas.requestPaint()
     onSelectedLetterChanged: canvas.requestPaint()
-    onActiveSectorChanged: canvas.requestPaint()
-    onActiveLetterChanged: canvas.requestPaint()
+    onActiveSectorChanged: {
+        if (activeSector >= 0) {
+            console.log("[UI] Sector changed:", activeSector)
+            sectorPulseAnim.restart()
+        }
+        canvas.requestPaint()
+    }
+    onActiveLetterChanged: {
+        if (activeLetter >= 0) {
+            console.log("[UI] Letter changed:", activeLetter)
+            letterPopAnim.restart()
+        }
+        canvas.requestPaint()
+    }
     onWidthChanged: canvas.requestPaint()
     onHeightChanged: canvas.requestPaint()
+    onSectorPulseScaleChanged: canvas.requestPaint()
+    onLetterPopScaleChanged: canvas.requestPaint()
+    onCommitGlowIntensityChanged: canvas.requestPaint()
+    onMagneticOffsetXChanged: canvas.requestPaint()
+    onMagneticOffsetYChanged: canvas.requestPaint()
 
     Connections {
         target: uiBridge
@@ -262,6 +350,71 @@ Item {
             } else {
                 root.localTrackingLetter = false
             }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // UI-only animations (do not affect engine/commit logic)
+    // ─────────────────────────────────────────────────────────────
+    SequentialAnimation {
+        id: sectorPulseAnim
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "sectorPulseScale"; from: 1.0; to: 1.08; duration: 80; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "sectorPulseOpacity"; from: 0.0; to: 0.25; duration: 80; easing.type: Easing.OutQuad }
+        }
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "sectorPulseScale"; to: 1.0; duration: 120; easing.type: Easing.InOutQuad }
+            NumberAnimation { target: root; property: "sectorPulseOpacity"; to: 0.0; duration: 120; easing.type: Easing.InQuad }
+        }
+    }
+
+    SequentialAnimation {
+        id: letterPopAnim
+        NumberAnimation { target: root; property: "letterPopScale"; from: 1.0; to: 1.15; duration: 60; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+        NumberAnimation { target: root; property: "letterPopScale"; to: 1.0; duration: 100; easing.type: Easing.InOutQuad }
+    }
+
+    SequentialAnimation {
+        id: commitGlowAnim
+        NumberAnimation { target: root; property: "commitGlowIntensity"; from: 0.0; to: 0.5; duration: 50; easing.type: Easing.OutQuad }
+        NumberAnimation { target: root; property: "commitGlowIntensity"; to: 0.0; duration: 200; easing.type: Easing.InQuad }
+    }
+
+    // Magnetic offset calculation (smooth spring-like pull toward pointer)
+    Timer {
+        interval: 16
+        running: root.activeLetter >= 0
+        repeat: true
+        onTriggered: {
+            if (root.activeSector < 0 || root.activeLetter < 0) {
+                root.magneticOffsetX = 0
+                root.magneticOffsetY = 0
+                return
+            }
+            var centerX = root.width / 2
+            var centerY = root.height / 2
+            var radius = Math.min(root.width, root.height) * 0.45
+            var sectorSize = 2 * Math.PI / root.sectorCount
+            var start = (root.activeSector * sectorSize) - Math.PI / 2
+            var keys = root.sectorKeys[root.activeSector] || []
+            var perKey = sectorSize / Math.max(keys.length, 1)
+            var keyAngle = start + perKey * (root.activeLetter + 0.5)
+            var textRadius = radius * 0.68
+            var keyX = centerX + Math.cos(keyAngle) * textRadius
+            var keyY = centerY + Math.sin(keyAngle) * textRadius
+
+            var toPointerX = root.smoothPointerX - keyX
+            var toPointerY = root.smoothPointerY - keyY
+            var dist = Math.sqrt(toPointerX * toPointerX + toPointerY * toPointerY)
+            var maxPull = 4.0
+            var pullFactor = Math.min(1.0, dist / (radius * 0.3))
+
+            var targetOffsetX = (dist > 0.1) ? (toPointerX / dist) * maxPull * pullFactor : 0
+            var targetOffsetY = (dist > 0.1) ? (toPointerY / dist) * maxPull * pullFactor : 0
+
+            var spring = 0.3
+            root.magneticOffsetX += (targetOffsetX - root.magneticOffsetX) * spring
+            root.magneticOffsetY += (targetOffsetY - root.magneticOffsetY) * spring
         }
     }
 }
