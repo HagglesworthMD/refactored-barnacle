@@ -162,6 +162,8 @@ void InputRouter::handleTouchDown(double xNorm, double yNorm) {
     m_skipCommitOnTouchUp = false;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     m_gestures.onTouchDown(sample);
+    m_swipePath.clear();
+    m_swipePath.addPoint(QPointF(xNorm, yNorm));
     transitionTo(RouterState::Hovering, "touch_down");
     updateSelection(xNorm, yNorm);
 }
@@ -171,6 +173,7 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
     m_lastY = yNorm;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     m_gestures.onTouchMove(sample);
+    m_swipePath.addPoint(QPointF(xNorm, yNorm));
     if (m_state == RouterState::Idle) {
         transitionTo(RouterState::Hovering, "touch_move");
     }
@@ -180,6 +183,10 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
 void InputRouter::handleTouchUp(double xNorm, double yNorm) {
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     const SwipeDir swipe = m_gestures.onTouchUp(sample);
+    if (!m_swipePath.empty()) {
+        Logging::log(LogLevel::Info, "SWIPE", QString("SwipePath points=%1").arg(m_swipePath.points.size()));
+    }
+    m_swipePath.clear();
     if (m_skipCommitOnTouchUp) {
         m_skipCommitOnTouchUp = false;
         clearSelection("commit_char");
@@ -349,6 +356,7 @@ const char* InputRouter::stateName(RouterState s) {
 
 void InputRouter::resetCtx() {
     m_ctx = GestureCtx{};
+    m_swipePath.clear();
 }
 
 void InputRouter::transitionTo(RouterState next, const char* reason) {

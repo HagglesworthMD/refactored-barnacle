@@ -9,6 +9,7 @@
 #include "GestureRecognizer.h"
 #include "Haptics.h"
 #include "RadialLayout.h"
+#include "swipe/SwipePath.h"
 #ifdef RADIALKB_LEGACY_ROUTER_SM
 #include "StateMachine.h"
 #endif
@@ -79,6 +80,8 @@ private:
     bool m_skipCommitOnTouchUp{false};
     double m_lastX{0.0};
     double m_lastY{0.0};
+
+    SwipePath m_swipePath;
 };
 
 }
