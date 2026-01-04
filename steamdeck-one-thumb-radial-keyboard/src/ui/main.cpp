@@ -56,6 +56,16 @@ public:
     Q_INVOKABLE void sendTouchDown(double x, double y) { sendJson("touch_down", x, y); }
     Q_INVOKABLE void sendTouchMove(double x, double y) { sendJson("touch_move", x, y); }
     Q_INVOKABLE void sendTouchUp(double x, double y) { sendJson("touch_up", x, y); }
+    Q_INVOKABLE void sendChar(const QString &ch) {
+        const QString trimmed = ch.left(1).toLower();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+        QJsonObject obj;
+        obj.insert("type", "commit_char");
+        obj.insert("char", trimmed);
+        sendObject(obj);
+    }
     void sendUiShow() { sendType("ui_show"); }
     void sendUiHide() { sendType("ui_hide"); }
     Q_INVOKABLE void sendAction(const QString &action) {

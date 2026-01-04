@@ -4,7 +4,6 @@
 #include <QJsonDocument>
 #include <QChar>
 #include <QJsonObject>
-#include <QDebug>
 #include <QtMath>
 #include <algorithm>
 
@@ -83,6 +82,16 @@ InputRouter::InputRouter(QObject *parent)
       m_layout(RadialLayoutConfig{8, 0.5, 0.5, M_PI / 2.0}) {
 }
 
+double InputRouter::clamp01(double value) {
+    if (value < 0.0) {
+        return 0.0;
+    }
+    if (value > 1.0) {
+        return 1.0;
+    }
+    return value;
+}
+
 QString InputRouter::handleMessage(const QString &line) {
     QJsonParseError error{};
     const QJsonDocument doc = QJsonDocument::fromJson(line.toUtf8(), &error);
@@ -94,8 +103,10 @@ QString InputRouter::handleMessage(const QString &line) {
     const QJsonObject obj = doc.object();
     const QString type = obj.value("type").toString();
     if (type == "touch_down" || type == "touch_move" || type == "touch_up") {
-        const double x = obj.value("x").toDouble();
-        const double y = obj.value("y").toDouble();
+        const double x = clamp01(obj.value("x").toDouble());
+        const double y = clamp01(obj.value("y").toDouble());
+        Q_ASSERT(x >= 0.0 && x <= 1.0);
+        Q_ASSERT(y >= 0.0 && y <= 1.0);
         Logging::log(LogLevel::Debug, "ENGINE",
                      QString("input %1 x=%2 y=%3").arg(type).arg(x, 0, 'f', 3).arg(y, 0, 'f', 3));
         if (type == "touch_down") {
@@ -105,12 +116,30 @@ QString InputRouter::handleMessage(const QString &line) {
         } else {
             handleTouchUp(x, y);
         }
+    } else if (type == "commit_char") {
+        const QString ch = obj.value("char").toString();
+        if (!ch.isEmpty()) {
+            const QChar value = ch.at(0);
+            transitionTo(RouterState::CommitChar, "commit_char");
+            if (value == QChar('\n')) {
+                m_commit.commitAction("enter");
+            } else if (value == QChar('\b')) {
+                m_commit.commitAction("backspace");
+            } else if (value == QChar(' ')) {
+                m_commit.commitAction("space");
+            } else {
+                m_commit.commitChar(value);
+            }
+            m_haptics.onCommit();
+            transitionTo(RouterState::Idle, "commit_done");
+            m_skipCommitOnTouchUp = true;
+        }
     } else if (type == "action") {
         handleAction(obj.value("action").toString());
     } else if (type == "ui_show") {
-        m_stateMachine.transitionTo(State::Idle, "ui_show");
+        transitionTo(RouterState::Idle, "ui_show");
     } else if (type == "ui_hide") {
-        m_stateMachine.transitionTo(State::Hidden, "ui_hide");
+        clearSelection("ui_hide");
     }
 
     QJsonObject reply;
@@ -135,9 +164,10 @@ QString InputRouter::handleMessage(const QString &line) {
 void InputRouter::handleTouchDown(double xNorm, double yNorm) {
     m_lastX = xNorm;
     m_lastY = yNorm;
+    m_skipCommitOnTouchUp = false;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     m_gestures.onTouchDown(sample);
-    enterTrackGroup("touch_down");
+    transitionTo(RouterState::Hovering, "touch_down");
     updateSelection(xNorm, yNorm);
 }
 
@@ -145,12 +175,9 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
     m_lastX = xNorm;
     m_lastY = yNorm;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
-    const SwipeDir swipe = m_gestures.onTouchMove(sample);
-    if (swipe == SwipeDir::Down) {
-        m_stateMachine.transitionTo(State::Cancelled, "swipe_down");
-        m_haptics.onCancel();
-        m_stateMachine.transitionTo(State::Idle, "cancel_done");
-        return;
+    m_gestures.onTouchMove(sample);
+    if (m_state == RouterState::Idle) {
+        transitionTo(RouterState::Hovering, "touch_move");
     }
     updateSelection(xNorm, yNorm);
 }
@@ -158,30 +185,34 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
 void InputRouter::handleTouchUp(double xNorm, double yNorm) {
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     const SwipeDir swipe = m_gestures.onTouchUp(sample);
+    if (m_skipCommitOnTouchUp) {
+        m_skipCommitOnTouchUp = false;
+        clearSelection("commit_char");
+        return;
+    }
     if (swipe == SwipeDir::Left) {
+        transitionTo(RouterState::CommitChar, "swipe_left");
         m_commit.commitAction("backspace");
-        m_stateMachine.transitionTo(State::Committing, "swipe_left");
         m_haptics.onCommit();
-        m_stateMachine.transitionTo(State::Idle, "commit_done");
+        transitionTo(RouterState::Idle, "commit_done");
         return;
     }
     else if (swipe == SwipeDir::Right) {
+        transitionTo(RouterState::CommitChar, "swipe_right");
         m_commit.commitAction("space");
-        m_stateMachine.transitionTo(State::Committing, "swipe_right");
         m_haptics.onCommit();
-        m_stateMachine.transitionTo(State::Idle, "commit_done");
+        transitionTo(RouterState::Idle, "commit_done");
         return;
     }
     else if (swipe == SwipeDir::Down) {
-        m_stateMachine.transitionTo(State::Cancelled, "swipe_down");
         m_haptics.onCancel();
-        m_stateMachine.transitionTo(State::Idle, "cancel_done");
+        clearSelection("swipe_down");
         return;
     }
 
     updateSelection(xNorm, yNorm);
     if (m_selectedSector < 0) {
-        m_stateMachine.transitionTo(State::Idle, "touch_up_no_selection");
+        transitionTo(RouterState::Idle, "touch_up_no_selection");
         return;
     }
 
@@ -198,25 +229,30 @@ void InputRouter::handleTouchUp(double xNorm, double yNorm) {
                      .arg(actionLabel(action))
                      .arg(keycodeLabel(action)));
     if (action.type == KeyAction::None) {
-        m_stateMachine.transitionTo(State::Idle, "commit_none");
+        transitionTo(RouterState::Idle, "commit_none");
         return;
     }
-    m_stateMachine.transitionTo(State::Committing, "touch_up_commit");
+    transitionTo(RouterState::CommitChar, "touch_up_commit");
     m_commit.commitAction(action);
     m_haptics.onCommit();
-    m_stateMachine.transitionTo(State::Idle, "commit_done");
+    transitionTo(RouterState::Idle, "commit_done");
 }
 
 void InputRouter::handleAction(const QString &actionType) {
     if (actionType == "enter" || actionType == "space" || actionType == "backspace") {
+        if (actionType == "enter") {
+            transitionTo(RouterState::CommitChar, "action_enter");
+        } else if (actionType == "space") {
+            transitionTo(RouterState::CommitChar, "action_space");
+        } else {
+            transitionTo(RouterState::CommitChar, "action_backspace");
+        }
         m_commit.commitAction(actionType);
-        m_stateMachine.transitionTo(State::Committing, actionType);
-        m_stateMachine.transitionTo(State::Idle, "commit_done");
+        transitionTo(RouterState::Idle, "commit_done");
     }
     if (actionType == "cancel") {
-        m_stateMachine.transitionTo(State::Cancelled, "cancel_action");
         m_haptics.onCancel();
-        m_stateMachine.transitionTo(State::Idle, "cancel_done");
+        clearSelection("cancel_action");
     }
 }
 
@@ -236,12 +272,7 @@ void InputRouter::updateSelection(double xNorm, double yNorm) {
     }
 
     if (radius < kDeadzoneRadius) {
-        if (m_selectedSector != -1 || m_selectedKey != -1) {
-            m_selectedSector = -1;
-            m_selectedKey = -1;
-            emit selectionChanged(m_selectedSector, m_selectedKey, "group");
-            Logging::log(LogLevel::Info, "ENGINE", "selection cleared (deadzone)");
-        }
+        clearSelection("pad_exit");
         return;
     }
 
@@ -259,7 +290,6 @@ void InputRouter::updateSelection(double xNorm, double yNorm) {
             angle, m_selectedSector, m_selectedKey, kAngleHysteresis);
         if (nextKey != m_selectedKey) {
             m_selectedKey = nextKey;
-            m_haptics.onSelectionChange();
             emit selectionChanged(m_selectedSector, m_selectedKey, "letter");
             Logging::log(LogLevel::Info, "ENGINE",
                          QString("selection key %1:%2").arg(m_selectedSector).arg(m_selectedKey));
@@ -271,17 +301,32 @@ void InputRouter::updateSelection(double xNorm, double yNorm) {
 
 void InputRouter::enterTrackGroup(const QString &reason) {
     m_trackingLetter = false;
+#ifdef RADIALKB_LEGACY_ROUTER_SM
     m_stateMachine.transitionTo(State::TrackGroup, reason);
+#else
+    Q_UNUSED(reason);
+#endif
 }
 
 void InputRouter::enterTrackLetter(const QString &reason) {
     m_trackingLetter = true;
+#ifdef RADIALKB_LEGACY_ROUTER_SM
     m_stateMachine.transitionTo(State::TrackLetter, reason);
+#else
+    Q_UNUSED(reason);
+#endif
 }
 
+void InputRouter::clearSelection(const char* reason) {
+    if (m_selectedSector != -1 || m_selectedKey != -1 || m_trackingLetter) {
+        m_selectedSector = -1;
+        m_selectedKey = -1;
+        m_trackingLetter = false;
+        emit selectionChanged(m_selectedSector, m_selectedKey, "group");
+        Logging::log(LogLevel::Info, "ENGINE", QString("selection cleared (%1)").arg(reason));
+    }
+    transitionTo(RouterState::Idle, reason);
 }
-
-namespace radialkb {
 
 // ─────────────────────────────────────────────────────────────
 // Phase 1.5: InputRouter explicit FSM helpers
@@ -291,10 +336,8 @@ const char* InputRouter::stateName(RouterState s) {
     switch (s) {
     case RouterState::Idle: return "Idle";
     case RouterState::Hovering: return "Hovering";
-    case RouterState::Touching: return "Touching";
-    case RouterState::Dragging: return "Dragging";
-    case RouterState::Swiping: return "Swiping";
-    case RouterState::Cancelled: return "Cancelled";
+    case RouterState::CommitChar: return "CommitChar";
+    case RouterState::SwipeCapture: return "SwipeCapture";
     }
     return "Unknown";
 }
@@ -307,7 +350,12 @@ void InputRouter::transitionTo(RouterState next, const char* reason) {
     if (next == m_state) return;
     const auto prev = m_state;
     m_state = next;
-    qInfo() << "InputRouter: state" << stateName(prev) << "->" << stateName(next) << "reason=" << (reason ? reason : "");
+    const QString reasonStr = reason ? QString::fromLatin1(reason) : QStringLiteral("");
+    Logging::log(LogLevel::Info, "FSM",
+                 QString("RouterFSM: %1 -> %2 reason=%3")
+                     .arg(stateName(prev))
+                     .arg(stateName(next))
+                     .arg(reasonStr));
     if (next == RouterState::Idle) {
         resetCtx();
     }

@@ -93,6 +93,7 @@ Item {
                 return
             }
             if (root.hoverTracking) {
+                root.commitSelection()
                 uiBridge.sendTouchUp(root.normalizedX(root.lastHoverX), root.normalizedY(root.lastHoverY))
                 root.hoverTracking = false
             }
@@ -126,6 +127,7 @@ Item {
             if (mouse.button !== Qt.LeftButton) {
                 return
             }
+            root.commitSelection()
             uiBridge.sendTouchUp(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
         }
         onClicked: (mouse) => {
@@ -201,6 +203,38 @@ Item {
             root.selectionChanged(index, -1)
             canvas.requestPaint()
         }
+    }
+
+    function commitSelection() {
+        if (!uiBridge.connected || root.activeSector < 0) {
+            return false
+        }
+        var keys = root.sectorKeys[root.activeSector] || []
+        var keyIndex = root.activeLetter
+        if (keyIndex < 0) {
+            keyIndex = 0
+        }
+        if (keyIndex >= keys.length) {
+            return false
+        }
+        var label = keys[keyIndex]
+        if (!label || label.length === 0) {
+            return false
+        }
+        var charToSend = label
+        if (label === "␠") {
+            charToSend = " "
+        } else if (label === "⌫") {
+            charToSend = "\b"
+        } else if (label === "↵") {
+            charToSend = "\n"
+        }
+        console.log("[UI] commitSelection", label, "->", charToSend)
+        uiBridge.sendChar(charToSend)
+        if (label === "␠") {
+            return true
+        }
+        return true
     }
 
     onSelectedSectorChanged: canvas.requestPaint()
