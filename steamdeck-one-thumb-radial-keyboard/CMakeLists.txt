@@ -19,6 +19,7 @@ target_compile_definitions(radialkb-ui PRIVATE RADIALKB_QML_DIR="${CMAKE_CURRENT
 add_executable(radialkb-engine
     src/engine/EngineMain.cpp
     src/engine/InputRouter.cpp
+    src/engine/swipe/SwipePath.cpp
     src/engine/RadialLayout.cpp
     src/engine/StateMachine.cpp
     src/engine/GestureRecognizer.cpp
@@ -38,6 +39,7 @@ target_link_libraries(radialkbctl PRIVATE Qt6::Core Qt6::DBus)
 
 add_executable(engine_tests
     tests/engine_tests.cpp
+    src/engine/swipe/SwipePath.cpp
     src/engine/RadialLayout.cpp
     src/engine/StateMachine.cpp
     src/engine/GestureRecognizer.cpp
