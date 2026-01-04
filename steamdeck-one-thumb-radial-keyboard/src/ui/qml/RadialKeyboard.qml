@@ -38,10 +38,12 @@ Item {
     property real sectorPulseOpacity: 0.0     // Pulse glow opacity
     property real letterPopScale: 1.0         // Animates on letter change
     property real commitGlowIntensity: 0.0    // Commit flash effect
+    property color commitGlowColor: Qt.rgba(0.35, 0.65, 1.0, 1.0)  // Neutral cyan-blue
     property real magneticOffsetX: 0.0        // Magnetic pull toward pointer
     property real magneticOffsetY: 0.0
     property real smoothPointerX: width / 2   // Smoothed pointer position
     property real smoothPointerY: height / 2
+    readonly property real maxMagneticOffset: 3.0  // Pixel clamp for magnetic pull
 
     Behavior on smoothPointerX { SmoothedAnimation { velocity: 1200; duration: 80 } }
     Behavior on smoothPointerY { SmoothedAnimation { velocity: 1200; duration: 80 } }
@@ -82,7 +84,7 @@ Item {
                 ctx.stroke()
 
                 // Pulse glow overlay
-                if (isActiveSector && root.sectorPulseOpacity > 0.01) {
+                if (isActiveSector && root.sectorPulseOpacity > 0.02) {
                     ctx.beginPath()
                     ctx.moveTo(0, 0)
                     ctx.arc(0, 0, radius, startAngle, endAngle)
@@ -129,9 +131,12 @@ Item {
                         ctx.fill()
 
                         // Commit glow overlay
-                        if (root.commitGlowIntensity > 0.01) {
+                        if (root.commitGlowIntensity > 0.02) {
                             ctx.beginPath()
-                            ctx.fillStyle = "rgba(74, 163, 255," + root.commitGlowIntensity + ")"
+                            var r = Math.floor(root.commitGlowColor.r * 255)
+                            var g = Math.floor(root.commitGlowColor.g * 255)
+                            var b = Math.floor(root.commitGlowColor.b * 255)
+                            ctx.fillStyle = "rgba(" + r + "," + g + "," + b + "," + root.commitGlowIntensity + ")"
                             ctx.arc(0, 0, 20, 0, 2 * Math.PI)
                             ctx.fill()
                         }
@@ -359,7 +364,7 @@ Item {
     SequentialAnimation {
         id: sectorPulseAnim
         ParallelAnimation {
-            NumberAnimation { target: root; property: "sectorPulseScale"; from: 1.0; to: 1.08; duration: 80; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "sectorPulseScale"; from: 1.0; to: 1.06; duration: 80; easing.type: Easing.OutQuad }
             NumberAnimation { target: root; property: "sectorPulseOpacity"; from: 0.0; to: 0.25; duration: 80; easing.type: Easing.OutQuad }
         }
         ParallelAnimation {
@@ -370,13 +375,13 @@ Item {
 
     SequentialAnimation {
         id: letterPopAnim
-        NumberAnimation { target: root; property: "letterPopScale"; from: 1.0; to: 1.15; duration: 60; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
+        NumberAnimation { target: root; property: "letterPopScale"; from: 1.0; to: 1.12; duration: 60; easing.type: Easing.OutBack; easing.overshoot: 2.0 }
         NumberAnimation { target: root; property: "letterPopScale"; to: 1.0; duration: 100; easing.type: Easing.InOutQuad }
     }
 
     SequentialAnimation {
         id: commitGlowAnim
-        NumberAnimation { target: root; property: "commitGlowIntensity"; from: 0.0; to: 0.5; duration: 50; easing.type: Easing.OutQuad }
+        NumberAnimation { target: root; property: "commitGlowIntensity"; from: 0.0; to: 0.42; duration: 50; easing.type: Easing.OutQuad }
         NumberAnimation { target: root; property: "commitGlowIntensity"; to: 0.0; duration: 200; easing.type: Easing.InQuad }
     }
 
@@ -406,11 +411,10 @@ Item {
             var toPointerX = root.smoothPointerX - keyX
             var toPointerY = root.smoothPointerY - keyY
             var dist = Math.sqrt(toPointerX * toPointerX + toPointerY * toPointerY)
-            var maxPull = 4.0
             var pullFactor = Math.min(1.0, dist / (radius * 0.3))
 
-            var targetOffsetX = (dist > 0.1) ? (toPointerX / dist) * maxPull * pullFactor : 0
-            var targetOffsetY = (dist > 0.1) ? (toPointerY / dist) * maxPull * pullFactor : 0
+            var targetOffsetX = (dist > 0.1) ? (toPointerX / dist) * root.maxMagneticOffset * pullFactor : 0
+            var targetOffsetY = (dist > 0.1) ? (toPointerY / dist) * root.maxMagneticOffset * pullFactor : 0
 
             var spring = 0.3
             root.magneticOffsetX += (targetOffsetX - root.magneticOffsetX) * spring
