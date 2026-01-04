@@ -4,8 +4,13 @@
 #include <QLocalSocket>
 #include <QStandardPaths>
 #include <unistd.h>
+#include <memory>
 #include "InputRouter.h"
 #include "Logging.h"
+
+#ifdef RADIALKB_HAS_LIBINPUT
+#include "TouchInputLibinput.h"
+#endif
 
 using namespace radialkb;
 
@@ -38,6 +43,43 @@ int main(int argc, char *argv[]) {
     }
 
     InputRouter router;
+
+#ifdef RADIALKB_HAS_LIBINPUT
+    // Touchscreen input via libinput (opt-in via RADIALKB_INPUT=touch)
+    std::unique_ptr<TouchInputLibinput> touchInput;
+    const QString inputMode = qEnvironmentVariable("RADIALKB_INPUT");
+    if (inputMode == QStringLiteral("touch")) {
+        const QString devicePath = qEnvironmentVariable("RADIALKB_TOUCH_DEVICE",
+                                                         QStringLiteral("/dev/input/event15"));
+        touchInput = std::make_unique<TouchInputLibinput>(devicePath);
+
+        // Forward touch events to router as JSON messages
+        QObject::connect(touchInput.get(), &TouchInputLibinput::touchDown,
+            [&router](int slot, double x, double y) {
+                Q_UNUSED(slot);
+                router.handleMessage(QString(R"({"type":"touch_down","x":%1,"y":%2})")
+                    .arg(x, 0, 'f', 6).arg(y, 0, 'f', 6));
+            });
+        QObject::connect(touchInput.get(), &TouchInputLibinput::touchMove,
+            [&router](int slot, double x, double y) {
+                Q_UNUSED(slot);
+                router.handleMessage(QString(R"({"type":"touch_move","x":%1,"y":%2})")
+                    .arg(x, 0, 'f', 6).arg(y, 0, 'f', 6));
+            });
+        QObject::connect(touchInput.get(), &TouchInputLibinput::touchUp,
+            [&router](int slot) {
+                Q_UNUSED(slot);
+                router.handleMessage(QStringLiteral(R"({"type":"touch_up","x":0,"y":0})"));
+            });
+
+        if (touchInput->start()) {
+            Logging::log(LogLevel::Info, "ENGINE", "Touchscreen input mode enabled");
+        } else {
+            Logging::log(LogLevel::Error, "ENGINE", "Failed to start touchscreen input");
+            touchInput.reset();
+        }
+    }
+#endif
 
     QObject::connect(&server, &QLocalServer::newConnection, [&]() {
         auto *socket = server.nextPendingConnection();

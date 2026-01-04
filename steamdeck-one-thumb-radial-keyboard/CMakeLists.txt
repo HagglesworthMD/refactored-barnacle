@@ -7,6 +7,12 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Test Network DBus)
 
+# Optional libinput for touchscreen input (enabled via RADIALKB_INPUT=touch)
+find_package(PkgConfig)
+if(PkgConfig_FOUND)
+    pkg_check_modules(LIBINPUT libinput)
+endif()
+
 add_executable(radialkb-ui
     src/ui/main.cpp
 )
@@ -30,6 +36,19 @@ add_executable(radialkb-engine
 )
 
 target_link_libraries(radialkb-engine PRIVATE Qt6::Core Qt6::Network)
+
+# Conditionally add libinput touchscreen backend
+if(LIBINPUT_FOUND)
+    target_sources(radialkb-engine PRIVATE
+        src/engine/TouchInputLibinput.cpp
+    )
+    target_include_directories(radialkb-engine PRIVATE ${LIBINPUT_INCLUDE_DIRS})
+    target_link_libraries(radialkb-engine PRIVATE ${LIBINPUT_LIBRARIES})
+    target_compile_definitions(radialkb-engine PRIVATE RADIALKB_HAS_LIBINPUT)
+    message(STATUS "libinput found - touchscreen input enabled")
+else()
+    message(STATUS "libinput not found - touchscreen input disabled")
+endif()
 
 add_executable(radialkbctl
     src/ui/radialkbctl.cpp

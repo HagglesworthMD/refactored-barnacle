@@ -15,6 +15,33 @@
 // INTENT: UI overlay must NOT steal focus from the target application.
 // INTENT: Keep the overlay responsive and non-invasive; diagnostics should be high-signal.
 
+// ScreenMetrics: physical sizing for touchscreen keyboard layout
+// Steam Deck touchscreen is ~267mm x 142mm (landscape), 1280x800 pixels
+class ScreenMetrics : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(qreal pxPerMm READ pxPerMm CONSTANT)
+    Q_PROPERTY(qreal screenWidthMm READ screenWidthMm CONSTANT)
+    Q_PROPERTY(qreal screenHeightMm READ screenHeightMm CONSTANT)
+    Q_PROPERTY(qreal keyboardHeightMm READ keyboardHeightMm CONSTANT)
+    Q_PROPERTY(bool touchMode READ touchMode CONSTANT)
+public:
+    explicit ScreenMetrics(QObject *parent = nullptr) : QObject(parent) {}
+
+    // Steam Deck: 1280x800 @ ~267x142mm = ~4.79 px/mm
+    qreal pxPerMm() const { return 4.79; }
+    qreal screenWidthMm() const { return 267.0; }
+    qreal screenHeightMm() const { return 142.0; }
+    qreal keyboardHeightMm() const { return 48.0; }  // iOS-like keyboard height
+
+    bool touchMode() const {
+        static bool mode = qEnvironmentVariable("RADIALKB_INPUT") == QStringLiteral("touch");
+        return mode;
+    }
+
+    Q_INVOKABLE qreal mmToPx(qreal mm) const { return mm * pxPerMm(); }
+    Q_INVOKABLE qreal pxToMm(qreal px) const { return px / pxPerMm(); }
+};
+
 class UiBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
@@ -167,7 +194,9 @@ int main(int argc, char *argv[]) {
     QCoreApplication::setApplicationName("radialkb-ui");
     QQmlApplicationEngine engine;
     UiBridge bridge;
+    ScreenMetrics screenMetrics;
     engine.rootContext()->setContextProperty("uiBridge", &bridge);
+    engine.rootContext()->setContextProperty("screenMetrics", &screenMetrics);
     engine.rootContext()->setContextProperty("qmlDir", QStringLiteral(RADIALKB_QML_DIR));
 
     const QUrl url = QUrl::fromLocalFile(QStringLiteral(RADIALKB_QML_DIR) + "/MainOverlay.qml");

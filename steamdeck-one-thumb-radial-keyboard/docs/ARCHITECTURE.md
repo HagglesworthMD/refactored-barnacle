@@ -1,8 +1,8 @@
-# Architecture Overview (RadialKB)
+# Architecture Overview (RadialKB / TouchKB)
 
 This document describes the current architecture and intended extension points for:
 - FSM-based input routing
-- Input pipeline (trackpad → interpretation → action)
+- Input pipeline (touchscreen / trackpad → interpretation → action)
 - Haptics hooks
 - UI overlay behavior (non-focus-stealing)
 
@@ -10,11 +10,28 @@ It is written to help contributors (including AI agents) make changes safely.
 
 ---
 
+## Input Modes
+
+The project supports two input modes:
+
+### Touch Mode (iOS-style keyboard)
+- Enabled via `RADIALKB_INPUT=touch`
+- Uses libinput for touchscreen input (Steam Deck FTS3528)
+- iOS-style rectangular QWERTY layout
+- Physical sizing based on millimeters (48mm keyboard height)
+- Tap-to-commit interaction
+
+### Radial Mode (default)
+- Enabled when `RADIALKB_INPUT` is unset or not "touch"
+- Uses trackpad input via UI socket
+- Radial/circular layout with 8 sectors
+- One-thumb usable on Steam Deck left trackpad
+
+---
+
 ## Non-negotiable Constraints
 
-- Radial / circular layout only
 - One-thumb usable
-- Trackpad-first (Steam Deck + Apple Magic Trackpad)
 - Desktop mode compatible
 - Overlay must NOT steal focus
 - Offline-only
@@ -39,14 +56,43 @@ Key files (expected):
 
 ### UI (radialkb-ui)
 Responsibilities:
-- Render overlay (radial sectors, highlights, candidate row)
+- Render overlay (radial sectors or touch keyboard, highlights, candidate row)
 - Never steal focus from the target app
 - Provide visual feedback for current sector/selection
 - Offer controls (pin/show/hide, drag handle, mode toggles) where applicable
 
-Key files (expected):
-- `src/ui/main.cpp`
-- `src/ui/qml/*.qml` (e.g. `RadialKeyboard.qml`, `MainOverlay.qml`)
+Key files:
+- `src/ui/main.cpp` — UI entry point, UiBridge, ScreenMetrics
+- `src/ui/qml/MainOverlay.qml` — Root window, mode switching
+- `src/ui/qml/RadialKeyboard.qml` — Radial trackpad keyboard
+- `src/ui/qml/TouchKeyboard.qml` — iOS-style touchscreen keyboard
+
+---
+
+## Touchscreen Input (libinput)
+
+When `RADIALKB_INPUT=touch`, the engine uses libinput to capture touchscreen events.
+
+### TouchInputLibinput
+- Uses libinput PATH backend (not udev) for direct device access
+- Integrates with Qt event loop via QSocketNotifier
+- Normalizes touch coordinates from mm to 0..1 space
+- Device path configurable via `RADIALKB_TOUCH_DEVICE` (default: `/dev/input/event15`)
+
+Physical dimensions (Steam Deck FTS3528):
+- Width: 267mm
+- Height: 142mm
+
+Signals:
+- `touchDown(int slot, double xNorm, double yNorm)`
+- `touchMove(int slot, double xNorm, double yNorm)`
+- `touchUp(int slot)`
+
+### ScreenMetrics
+Provides physical sizing for QML:
+- `pxPerMm` — pixels per millimeter (~4.79 for Steam Deck)
+- `mmToPx(mm)` — convert mm to pixels
+- `keyboardHeightMm` — iOS-like keyboard height (48mm)
 
 ---
 

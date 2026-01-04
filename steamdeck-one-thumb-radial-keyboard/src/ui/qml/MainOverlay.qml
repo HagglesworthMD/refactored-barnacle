@@ -8,7 +8,11 @@ import Qt.labs.settings 1.1
 
 Window {
     id: overlay
-    // Steam Deck left-trackpad ergonomic placement
+
+    // Mode detection: touch mode via RADIALKB_INPUT=touch
+    readonly property bool touchMode: screenMetrics.touchMode
+
+    // Radial mode: Steam Deck left-trackpad ergonomic placement
     readonly property real pxPerMm: 5.0   // Steam Deck ~= 5 px/mm
     readonly property real kbDiameterMm: 74
     readonly property real kbDiameterPx: kbDiameterMm * pxPerMm
@@ -17,15 +21,20 @@ Window {
     readonly property int candidateBarHeight: 32
     readonly property int candidateBarMargin: 6
 
-    width: kbDiameterPx
-    height: kbDiameterPx + candidateBarHeight + candidateBarMargin
+    // Touch mode: full-width keyboard at bottom
+    readonly property real touchKbHeight: screenMetrics.mmToPx(48)
+    readonly property real touchKbMargin: screenMetrics.mmToPx(7)
+
+    // Dynamic sizing based on mode
+    width: touchMode ? Screen.width : kbDiameterPx
+    height: touchMode ? (touchKbHeight + touchKbMargin + candidateBarHeight) : (kbDiameterPx + candidateBarHeight + candidateBarMargin)
     color: "transparent"
     flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
     visibility: Window.Windowed
     visible: true
     opacity: uiSettings.kbOpacity
-    x: leftPadOffsetX
-    y: leftPadOffsetY
+    x: touchMode ? 0 : leftPadOffsetX
+    y: touchMode ? (Screen.height - height) : leftPadOffsetY
 
     // Persisted UI preferences
     Settings {
@@ -37,18 +46,41 @@ Window {
         uiBridge.connectEngine()
     }
 
-    RadialKeyboard {
-        id: keyboard
-        anchors.centerIn: parent
-        width: kbDiameterPx
-        height: kbDiameterPx
+    // Keyboard loader: RadialKeyboard (trackpad) or TouchKeyboard (touchscreen)
+    Loader {
+        id: keyboardLoader
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: candidateBar.top
+        anchors.bottomMargin: candidateBarMargin
+
+        sourceComponent: overlay.touchMode ? touchKeyboardComponent : radialKeyboardComponent
+    }
+
+    Component {
+        id: radialKeyboardComponent
+        RadialKeyboard {
+            anchors.centerIn: parent
+            width: kbDiameterPx
+            height: kbDiameterPx
+        }
+    }
+
+    Component {
+        id: touchKeyboardComponent
+        TouchKeyboard {
+            anchors.fill: parent
+            active: true
+        }
     }
 
     CandidateBar {
+        id: candidateBar
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: keyboard.bottom
-        anchors.topMargin: candidateBarMargin
-        width: 320
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: overlay.touchMode ? touchKbMargin : 0
+        width: overlay.touchMode ? parent.width - 40 : 320
         height: candidateBarHeight
     }
 
