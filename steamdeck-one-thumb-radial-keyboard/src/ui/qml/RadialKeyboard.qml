@@ -7,10 +7,12 @@ Item {
     property int selectedLetter: -1
     property int engineSelectedSector: -1
     property int engineSelectedLetter: -1
-    property color baseColor: "#1e1f22"
-    property color highlightColor: "#4aa3ff"
-    property color letterColor: "#cfd2d8"
-    property color letterHighlight: "#f8f9fa"
+    property color baseColor: "#1b1c1f"
+    property color highlightColor: "#4da8ff"
+    property color letterColor: "#d3d6dc"
+    property color letterHighlight: "#ffffff"
+    // Codex: drag-to-type disabled (explicit)
+    readonly property bool dragToTypeEnabled: false
     property int activeSector: (uiBridge.connected && engineSelectedSector >= 0) ? engineSelectedSector : selectedSector
     property int activeLetter: (uiBridge.connected && engineSelectedLetter >= 0) ? engineSelectedLetter : selectedLetter
     property real deadzoneRadius: 0.12
@@ -43,7 +45,9 @@ Item {
     property real magneticOffsetY: 0.0
     property real smoothPointerX: width / 2   // Smoothed pointer position
     property real smoothPointerY: height / 2
-    readonly property real maxMagneticOffset: 3.0  // Pixel clamp for magnetic pull
+    readonly property real maxMagneticOffset: 2.5  // Pixel clamp for magnetic pull
+    readonly property real magneticDeadzonePx: 1.25
+    readonly property real magneticRadiusPx: 20.0
 
     Behavior on smoothPointerX { SmoothedAnimation { velocity: 1200; duration: 80 } }
     Behavior on smoothPointerY { SmoothedAnimation { velocity: 1200; duration: 80 } }
@@ -79,7 +83,7 @@ Item {
                 ctx.closePath()
                 ctx.fillStyle = isActiveSector ? root.highlightColor : root.baseColor
                 ctx.fill()
-                ctx.strokeStyle = "#2a2c30"
+                ctx.strokeStyle = "#2f3238"
                 ctx.lineWidth = 2
                 ctx.stroke()
 
@@ -126,7 +130,7 @@ Item {
                             ctx.scale(scale, scale)
                         }
                         ctx.beginPath()
-                        ctx.fillStyle = "rgba(255,255,255,0.18)"
+                        ctx.fillStyle = "rgba(255,255,255,0.16)"
                         ctx.arc(0, 0, 16, 0, 2 * Math.PI)
                         ctx.fill()
 
@@ -165,6 +169,10 @@ Item {
             if (pressed) {
                 return
             }
+            if (!root.dragToTypeEnabled) {
+                root.updateSelection(width / 2, height / 2)
+                return
+            }
             if (root.hoverTracking) {
                 root.commitSelection()
                 uiBridge.sendTouchUp(root.normalizedX(root.lastHoverX), root.normalizedY(root.lastHoverY))
@@ -187,6 +195,9 @@ Item {
                 root.lastHoverY = mouse.y
                 root.updateSelection(mouse.x, mouse.y)
                 uiBridge.sendTouchMove(root.normalizedX(mouse.x), root.normalizedY(mouse.y))
+                return
+            }
+            if (!root.dragToTypeEnabled) {
                 return
             }
             if (!root.hoverTracking) {
@@ -411,12 +422,30 @@ Item {
             var toPointerX = root.smoothPointerX - keyX
             var toPointerY = root.smoothPointerY - keyY
             var dist = Math.sqrt(toPointerX * toPointerX + toPointerY * toPointerY)
-            var pullFactor = Math.min(1.0, dist / (radius * 0.3))
 
-            var targetOffsetX = (dist > 0.1) ? (toPointerX / dist) * root.maxMagneticOffset * pullFactor : 0
-            var targetOffsetY = (dist > 0.1) ? (toPointerY / dist) * root.maxMagneticOffset * pullFactor : 0
-
+            var dead = root.magneticDeadzonePx
+            var r = root.magneticRadiusPx
             var spring = 0.3
+
+            if (dist <= dead) {
+                root.magneticOffsetX += (0 - root.magneticOffsetX) * spring
+                root.magneticOffsetY += (0 - root.magneticOffsetY) * spring
+                return
+            }
+
+            var nx = toPointerX / dist
+            var ny = toPointerY / dist
+            var d = dist - dead
+            var t = Math.min(1.0, d / Math.max(r, 0.001))
+            var strength = 1.0 - t
+            strength = strength * strength
+
+            var maxByDist = d * 0.35
+            var cap = Math.min(root.maxMagneticOffset, maxByDist)
+
+            var targetOffsetX = nx * cap * strength
+            var targetOffsetY = ny * cap * strength
+
             root.magneticOffsetX += (targetOffsetX - root.magneticOffsetX) * spring
             root.magneticOffsetY += (targetOffsetY - root.magneticOffsetY) * spring
         }
