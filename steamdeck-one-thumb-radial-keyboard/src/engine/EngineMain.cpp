@@ -21,6 +21,10 @@ QString socketPath() {
 
 int main(int argc, char *argv[]) {
     QCoreApplication app(argc, argv);
+
+    QCoreApplication::setOrganizationName("radialkb");
+    QCoreApplication::setOrganizationDomain("radialkb.local");
+    QCoreApplication::setApplicationName("radialkb-engine");
     Logging::init("ENGINE");
 
     const QString path = socketPath();
