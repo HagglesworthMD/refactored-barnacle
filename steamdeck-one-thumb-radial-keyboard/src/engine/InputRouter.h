@@ -72,6 +72,7 @@ private:
     int m_selectedSector{-1};
     int m_selectedKey{-1};
     bool m_trackingLetter{false};
+    bool m_skipCommitOnTouchUp{false};
     double m_lastX{0.0};
     double m_lastY{0.0};
 };

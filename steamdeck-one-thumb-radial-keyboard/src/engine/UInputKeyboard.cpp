@@ -22,12 +22,18 @@ struct KeyStroke {
 };
 
 bool charToKey(QChar ch, KeyStroke &out) {
+    static const int kLetterKeycodes[26] = {
+        KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
+        KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T,
+        KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z
+    };
+
     if (ch.isLetter()) {
         bool upper = ch.isUpper();
         QChar lower = ch.toLower();
         char latin = lower.toLatin1();
         if (latin >= 'a' && latin <= 'z') {
-            out.key = KEY_A + (latin - 'a');
+            out.key = kLetterKeycodes[latin - 'a'];
             out.shift = upper;
             return true;
         }
@@ -86,6 +92,17 @@ void UInputKeyboard::sendKey(int linuxKeyCode, bool pressRelease) {
         return;
     }
 
+    // Guard against stuck modifiers from the host session.
+    emitEvent(EV_KEY, KEY_LEFTSHIFT, 0);
+    emitEvent(EV_KEY, KEY_RIGHTSHIFT, 0);
+    emitEvent(EV_KEY, KEY_LEFTCTRL, 0);
+    emitEvent(EV_KEY, KEY_RIGHTCTRL, 0);
+    emitEvent(EV_KEY, KEY_LEFTALT, 0);
+    emitEvent(EV_KEY, KEY_RIGHTALT, 0);
+    emitEvent(EV_KEY, KEY_LEFTMETA, 0);
+    emitEvent(EV_KEY, KEY_RIGHTMETA, 0);
+    emitSync();
+
     emitEvent(EV_KEY, linuxKeyCode, 1);
     emitSync();
     if (pressRelease) {
@@ -106,6 +123,23 @@ void UInputKeyboard::sendText(const QString &text) {
                          QString("Unsupported character for uinput: '%1'").arg(ch));
             continue;
         }
+
+        Logging::log(LogLevel::Info, "COMMIT",
+                     QString("uinput char='%1' keycode=%2 shift=%3")
+                         .arg(ch)
+                         .arg(stroke.key)
+                         .arg(stroke.shift ? 1 : 0));
+
+        // Guard against stuck modifiers from the host session.
+        emitEvent(EV_KEY, KEY_LEFTSHIFT, 0);
+        emitEvent(EV_KEY, KEY_RIGHTSHIFT, 0);
+        emitEvent(EV_KEY, KEY_LEFTCTRL, 0);
+        emitEvent(EV_KEY, KEY_RIGHTCTRL, 0);
+        emitEvent(EV_KEY, KEY_LEFTALT, 0);
+        emitEvent(EV_KEY, KEY_RIGHTALT, 0);
+        emitEvent(EV_KEY, KEY_LEFTMETA, 0);
+        emitEvent(EV_KEY, KEY_RIGHTMETA, 0);
+        emitSync();
 
         if (stroke.shift) {
             emitEvent(EV_KEY, KEY_LEFTSHIFT, 1);
@@ -152,7 +186,12 @@ bool UInputKeyboard::ensureInitialized() {
         return false;
     }
 
-    for (int code = KEY_A; code <= KEY_Z; ++code) {
+    static const int kLetterKeycodes[26] = {
+        KEY_A, KEY_B, KEY_C, KEY_D, KEY_E, KEY_F, KEY_G, KEY_H, KEY_I, KEY_J,
+        KEY_K, KEY_L, KEY_M, KEY_N, KEY_O, KEY_P, KEY_Q, KEY_R, KEY_S, KEY_T,
+        KEY_U, KEY_V, KEY_W, KEY_X, KEY_Y, KEY_Z
+    };
+    for (int code : kLetterKeycodes) {
         ioctl(m_fd, UI_SET_KEYBIT, code);
     }
     ioctl(m_fd, UI_SET_KEYBIT, KEY_SPACE);

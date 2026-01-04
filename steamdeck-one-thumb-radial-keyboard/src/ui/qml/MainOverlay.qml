@@ -1,14 +1,34 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
+import QtQuick.Controls 2.15
+import Qt.labs.settings 1.1
 
 Window {
     id: overlay
-    width: 520
-    height: 520
+    // Steam Deck left-trackpad ergonomic placement
+    readonly property real pxPerMm: 5.0   // Steam Deck ~= 5 px/mm
+    readonly property real kbDiameterMm: 74
+    readonly property real kbDiameterPx: kbDiameterMm * pxPerMm
+    readonly property int leftPadOffsetX: 110
+    readonly property int leftPadOffsetY: Screen.height - height - 120
+    readonly property int candidateBarHeight: 32
+    readonly property int candidateBarMargin: 6
+
+    width: kbDiameterPx
+    height: kbDiameterPx + candidateBarHeight + candidateBarMargin
     color: "transparent"
     flags: Qt.Tool | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.WindowDoesNotAcceptFocus
     visibility: Window.Windowed
     visible: true
+    opacity: uiSettings.kbOpacity
+    x: leftPadOffsetX
+    y: leftPadOffsetY
+
+    // Persisted UI preferences
+    Settings {
+        id: uiSettings
+        property real kbOpacity: 0.85
+    }
 
     Component.onCompleted: {
         uiBridge.connectEngine()
@@ -17,21 +37,109 @@ Window {
     RadialKeyboard {
         id: keyboard
         anchors.centerIn: parent
-        width: 480
-        height: 480
+        width: kbDiameterPx
+        height: kbDiameterPx
     }
 
     CandidateBar {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: keyboard.bottom
-        anchors.topMargin: 6
+        anchors.topMargin: candidateBarMargin
         width: 320
-        height: 32
+        height: candidateBarHeight
     }
 
     DebugOverlay {
         anchors.left: parent.left
         anchors.top: parent.top
         connected: uiBridge.connected
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Transparency control (does not steal focus)
+    // ─────────────────────────────────────────────────────────────
+    Popup {
+        id: opacityPopup
+        parent: overlay.contentItem
+        modal: false
+        focus: false
+        closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+
+        x: Math.max(8, overlay.width - width - 8)
+        y: 8
+
+        background: Rectangle {
+            radius: 10
+            color: "#1e1e1e"
+            opacity: 0.92
+            border.width: 1
+            border.color: "#3a3a3a"
+        }
+
+        contentItem: Column {
+            spacing: 8
+            padding: 10
+
+            Text {
+                text: "Transparency"
+                color: "white"
+                font.pixelSize: 14
+            }
+
+            Row {
+                spacing: 10
+                Slider {
+                    id: opacitySlider
+                    from: 0.30
+                    to: 1.00
+                    stepSize: 0.05
+                    value: uiSettings.kbOpacity
+                    onMoved: {
+                        uiSettings.kbOpacity = value
+                        console.log("[UI] KB opacity =", uiSettings.kbOpacity.toFixed(2))
+                    }
+                    width: 180
+                }
+
+                Text {
+                    text: Math.round(uiSettings.kbOpacity * 100) + "%"
+                    color: "white"
+                    font.pixelSize: 12
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+        }
+    }
+
+    // Tiny opacity button on-keyboard (top-right), thumb-friendly, no focus grab
+    Rectangle {
+        id: opacityButton
+        width: 26
+        height: 26
+        radius: 13
+        color: "#000000"
+        opacity: 0.35
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: 6
+        anchors.rightMargin: 6
+
+        Text {
+            anchors.centerIn: parent
+            text: "OP"
+            color: "white"
+            font.pixelSize: 10
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            onEntered: opacityButton.opacity = 0.55
+            onExited: opacityButton.opacity = 0.35
+            onClicked: {
+                if (opacityPopup.opened) opacityPopup.close()
+                else opacityPopup.open()
+            }
+        }
     }
 }

@@ -116,6 +116,24 @@ QString InputRouter::handleMessage(const QString &line) {
         } else {
             handleTouchUp(x, y);
         }
+    } else if (type == "commit_char") {
+        const QString ch = obj.value("char").toString();
+        if (!ch.isEmpty()) {
+            const QChar value = ch.at(0);
+            transitionTo(RouterState::CommitChar, "commit_char");
+            if (value == QChar('\n')) {
+                m_commit.commitAction("enter");
+            } else if (value == QChar('\b')) {
+                m_commit.commitAction("backspace");
+            } else if (value == QChar(' ')) {
+                m_commit.commitAction("space");
+            } else {
+                m_commit.commitChar(value);
+            }
+            m_haptics.onCommit();
+            transitionTo(RouterState::Idle, "commit_done");
+            m_skipCommitOnTouchUp = true;
+        }
     } else if (type == "action") {
         handleAction(obj.value("action").toString());
     } else if (type == "ui_show") {
@@ -146,6 +164,7 @@ QString InputRouter::handleMessage(const QString &line) {
 void InputRouter::handleTouchDown(double xNorm, double yNorm) {
     m_lastX = xNorm;
     m_lastY = yNorm;
+    m_skipCommitOnTouchUp = false;
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     m_gestures.onTouchDown(sample);
     transitionTo(RouterState::Hovering, "touch_down");
@@ -166,6 +185,11 @@ void InputRouter::handleTouchMove(double xNorm, double yNorm) {
 void InputRouter::handleTouchUp(double xNorm, double yNorm) {
     TouchSample sample{xNorm, yNorm, QDateTime::currentMSecsSinceEpoch()};
     const SwipeDir swipe = m_gestures.onTouchUp(sample);
+    if (m_skipCommitOnTouchUp) {
+        m_skipCommitOnTouchUp = false;
+        clearSelection("commit_char");
+        return;
+    }
     if (swipe == SwipeDir::Left) {
         transitionTo(RouterState::CommitChar, "swipe_left");
         m_commit.commitAction("backspace");
